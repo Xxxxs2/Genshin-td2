@@ -1,13 +1,14 @@
 extends Node2D
 
 const PlayerShipScript := preload("res://scripts/PlayerShip.gd")
-const EnemyScript := preload("res://scripts/Enemy.gd")
 const BulletScript := preload("res://scripts/Bullet.gd")
 const StarfieldScript := preload("res://scripts/Starfield.gd")
-const TerrainObstacleScript := preload("res://scripts/TerrainObstacle.gd")
+const IslandScript := preload("res://scripts/Island.gd")
+const TurretScript := preload("res://scripts/Turret.gd")
 
 const ARENA_SIZE := Vector2(1280, 720)
-const NAV_RECT := Rect2(Vector2(60, 390), Vector2(1160, 260))
+const MAP_BOUNDS := Rect2(Vector2(50, 50), Vector2(1180, 620))
+const EXIT_RECT := Rect2(Vector2(520, 42), Vector2(240, 58))
 const UPGRADE_POOL := [
 	{"id": "damage", "name": "星轨主炮", "desc": "武器伤害 +25%"},
 	{"id": "rate", "name": "辉光装填", "desc": "开火速度 +18%"},
@@ -18,19 +19,20 @@ const UPGRADE_POOL := [
 	{"id": "heal", "name": "潮汐护核", "desc": "回复 35，生命上限 +10"},
 	{"id": "shield", "name": "镜光屏障", "desc": "获得可再生护盾"},
 	{"id": "aura", "name": "回旋星刃", "desc": "船周围周期伤害"},
-	{"id": "slow_bullets", "name": "航线偏转", "desc": "敌方弹幕速度 -15%"}
+	{"id": "slow_bullets", "name": "干扰旗语", "desc": "炮台弹速 -15%"},
+	{"id": "lock_jammer", "name": "迷雾干扰", "desc": "炮台锁定变慢"}
 ]
 
 var player: Node2D
-var enemies: Array = []
+var turrets: Array = []
 var bullets: Array = []
-var obstacles: Array = []
+var islands: Array = []
 var level := 1
 var state := "combat"
 var selected_upgrade_ids: Array[String] = []
-var enemy_bullet_speed_factor := 1.0
+var turret_bullet_speed_factor := 1.0
+var turret_lock_factor := 1.0
 var aura_timer := 0.0
-var obstacle_spawn_timer := 0.0
 
 var ui_layer: CanvasLayer
 var hud_label: Label
@@ -48,9 +50,9 @@ func _process(delta: float) -> void:
 		return
 	_handle_player_auto_fire()
 	_handle_player_aura(delta)
-	_tick_enemies(delta)
-	_tick_obstacles(delta)
+	_tick_turrets(delta)
 	_check_collisions()
+	_check_exit()
 	_cleanup_bullets()
 	_update_hud()
 
@@ -113,40 +115,63 @@ func _start_run() -> void:
 func _start_level() -> void:
 	state = "combat"
 	center_panel.visible = false
-	for enemy in enemies:
-		if is_instance_valid(enemy):
-			enemy.queue_free()
-	enemies.clear()
+	for turret in turrets:
+		if is_instance_valid(turret):
+			turret.queue_free()
+	turrets.clear()
 	for bullet in bullets:
 		if is_instance_valid(bullet):
 			bullet.queue_free()
 	bullets.clear()
-	for obstacle in obstacles:
-		if is_instance_valid(obstacle):
-			obstacle.queue_free()
-	obstacles.clear()
-	obstacle_spawn_timer = 0.7
-	var enemy_count := 4 + level * 2
-	for i in range(enemy_count):
-		_spawn_enemy(i, enemy_count)
-	for i in range(2 + mini(level, 3)):
-		_spawn_obstacle(-180.0 - i * 190.0)
+	for island in islands:
+		if is_instance_valid(island):
+			island.queue_free()
+	islands.clear()
+	player.position = Vector2(ARENA_SIZE.x * 0.5, ARENA_SIZE.y - 88.0)
+	_build_seaway_level()
 	_update_hud()
 
-func _spawn_enemy(index: int, total: int) -> void:
-	var lane_width := (ARENA_SIZE.x - 180.0) / maxf(1.0, float(total - 1))
-	var spawn := Vector2(90.0 + lane_width * index + randf_range(-36.0, 36.0), -70.0 - float(index % 5) * 68.0)
-	spawn.x = clamp(spawn.x, 90.0, ARENA_SIZE.x - 90.0)
-	var enemy := EnemyScript.new()
-	enemy.setup(level, spawn)
-	enemy.killed.connect(_on_enemy_killed)
-	enemies.append(enemy)
-	add_child(enemy)
+func _build_seaway_level() -> void:
+	var layouts := [
+		[
+			{"pos": Vector2(300, 470), "r": 92, "turret": Vector2(300, 430)},
+			{"pos": Vector2(760, 405), "r": 116, "turret": Vector2(725, 365)},
+			{"pos": Vector2(1015, 235), "r": 88, "turret": Vector2(990, 200)}
+		],
+		[
+			{"pos": Vector2(430, 520), "r": 108, "turret": Vector2(465, 480)},
+			{"pos": Vector2(850, 495), "r": 96, "turret": Vector2(815, 455)},
+			{"pos": Vector2(650, 245), "r": 125, "turret": Vector2(650, 205)}
+		],
+		[
+			{"pos": Vector2(245, 360), "r": 104, "turret": Vector2(280, 320)},
+			{"pos": Vector2(650, 450), "r": 112, "turret": Vector2(650, 405)},
+			{"pos": Vector2(1020, 345), "r": 106, "turret": Vector2(980, 300)},
+			{"pos": Vector2(520, 175), "r": 76, "turret": Vector2(520, 145)}
+		]
+	]
+	var layout: Array = layouts[(level - 1) % layouts.size()]
+	for item in layout:
+		_spawn_island(item["pos"], item["r"], item["turret"])
+	if level > 3:
+		_spawn_island(Vector2(350 + (level % 3) * 260, 300), 78.0, Vector2(350 + (level % 3) * 260, 265))
+
+func _spawn_island(pos: Vector2, radius: float, turret_pos: Vector2) -> void:
+	var island := IslandScript.new()
+	island.setup(pos, radius)
+	islands.append(island)
+	add_child(island)
+	var turret := TurretScript.new()
+	turret.setup(turret_pos, level)
+	turret.lock_time *= turret_lock_factor
+	turret.destroyed.connect(_on_turret_destroyed)
+	turrets.append(turret)
+	add_child(turret)
 
 func _handle_player_auto_fire() -> void:
 	if not player.can_fire():
 		return
-	var target := _find_nearest_enemy(player.weapon_range)
+	var target := _find_nearest_turret(player.weapon_range)
 	if target == null:
 		return
 	var base_direction := (target.position - player.position).normalized()
@@ -167,69 +192,40 @@ func _handle_player_aura(delta: float) -> void:
 	if aura_timer > 0.0:
 		return
 	aura_timer = 0.72
-	for enemy in enemies:
-		if is_instance_valid(enemy) and player.position.distance_to(enemy.position) <= player.aura_radius + enemy.radius:
-			enemy.take_damage(player.aura_damage)
+	for turret in turrets:
+		if is_instance_valid(turret) and player.position.distance_to(turret.position) <= player.aura_radius + turret.radius:
+			turret.take_damage(player.aura_damage)
 
-func _find_nearest_enemy(max_range: float) -> Node2D:
+func _find_nearest_turret(max_range: float) -> Node2D:
 	var best: Node2D = null
 	var best_distance := max_range
-	for enemy in enemies:
-		if not is_instance_valid(enemy):
+	for turret in turrets:
+		if not is_instance_valid(turret):
 			continue
-		var distance := player.position.distance_to(enemy.position)
+		var distance := player.position.distance_to(turret.position)
 		if distance <= best_distance:
-			best = enemy
+			best = turret
 			best_distance = distance
 	return best
 
-func _tick_enemies(delta: float) -> void:
-	for enemy in enemies:
-		if not is_instance_valid(enemy):
+func _tick_turrets(delta: float) -> void:
+	for turret in turrets:
+		if not is_instance_valid(turret):
 			continue
-		for bullet in enemy.tick(delta, player):
-			bullet.velocity *= enemy_bullet_speed_factor
+		for bullet in turret.tick(delta, player, turret_bullet_speed_factor):
 			bullets.append(bullet)
 			add_child(bullet)
-		if enemy.position.y > ARENA_SIZE.y + 70.0:
-			player.take_damage(enemy.bullet_damage * 1.5)
-			enemies.erase(enemy)
-			enemy.queue_free()
-	if enemies.is_empty() and state == "combat":
-		_show_upgrade_choices()
-
-func _tick_obstacles(delta: float) -> void:
-	obstacle_spawn_timer -= delta
-	if obstacle_spawn_timer <= 0.0:
-		obstacle_spawn_timer = maxf(1.35, 2.6 - level * 0.08)
-		if obstacles.size() < 5 + mini(level, 4):
-			_spawn_obstacle(randf_range(-120.0, -40.0))
-	for obstacle in obstacles.duplicate():
-		if not is_instance_valid(obstacle):
-			obstacles.erase(obstacle)
-			continue
-		if obstacle.position.y > ARENA_SIZE.y + obstacle.radius + 30.0:
-			obstacles.erase(obstacle)
-			obstacle.queue_free()
-
-func _spawn_obstacle(spawn_y: float) -> void:
-	var obstacle := TerrainObstacleScript.new()
-	var radius := randf_range(34.0, 58.0)
-	var x := randf_range(120.0 + radius, ARENA_SIZE.x - 120.0 - radius)
-	obstacle.setup(Vector2(x, spawn_y), radius, randf_range(48.0, 72.0) + level * 2.0, 8.0 + level * 1.2)
-	obstacles.append(obstacle)
-	add_child(obstacle)
 
 func _check_collisions() -> void:
 	for bullet in bullets:
 		if not is_instance_valid(bullet):
 			continue
 		if bullet.bullet_owner == 0:
-			for enemy in enemies:
-				if not is_instance_valid(enemy):
+			for turret in turrets:
+				if not is_instance_valid(turret):
 					continue
-				if bullet.position.distance_to(enemy.position) <= bullet.radius + enemy.radius:
-					enemy.take_damage(bullet.damage)
+				if bullet.position.distance_to(turret.position) <= bullet.radius + turret.radius:
+					turret.take_damage(bullet.damage)
 					if bullet.consume_hit():
 						bullet.queue_free()
 					break
@@ -237,34 +233,37 @@ func _check_collisions() -> void:
 			if bullet.position.distance_to(player.position) <= bullet.radius + player.radius:
 				player.take_damage(bullet.damage)
 				bullet.queue_free()
-	for obstacle in obstacles:
-		if not is_instance_valid(obstacle):
+	for island in islands:
+		if not is_instance_valid(island):
 			continue
-		var offset: Vector2 = player.position - obstacle.position
-		var min_distance: float = player.radius + obstacle.radius
+		var offset: Vector2 = player.position - island.position
+		var min_distance: float = player.radius + island.radius
 		var distance: float = offset.length()
 		if distance < min_distance and distance > 0.01:
-			player.position = obstacle.position + offset.normalized() * min_distance
-			player.position.x = clamp(player.position.x, NAV_RECT.position.x, NAV_RECT.end.x)
-			player.position.y = clamp(player.position.y, NAV_RECT.position.y, NAV_RECT.end.y)
-			player.take_damage(obstacle.damage)
+			player.position = island.position + offset.normalized() * min_distance
+			player.position.x = clamp(player.position.x, MAP_BOUNDS.position.x, MAP_BOUNDS.end.x)
+			player.position.y = clamp(player.position.y, MAP_BOUNDS.position.y, MAP_BOUNDS.end.y)
+	player.position.x = clamp(player.position.x, MAP_BOUNDS.position.x, MAP_BOUNDS.end.x)
+	player.position.y = clamp(player.position.y, MAP_BOUNDS.position.y, MAP_BOUNDS.end.y)
+
+func _check_exit() -> void:
+	if EXIT_RECT.has_point(player.position):
+		_show_upgrade_choices()
 
 func _cleanup_bullets() -> void:
 	bullets = bullets.filter(func(bullet) -> bool:
 		return is_instance_valid(bullet) and bullet.is_inside_tree()
 	)
 
-func _on_enemy_killed(enemy) -> void:
-	enemies.erase(enemy)
+func _on_turret_destroyed(turret) -> void:
+	turrets.erase(turret)
 	_update_hud()
-	if enemies.is_empty() and state == "combat":
-		_show_upgrade_choices()
 
 func _show_upgrade_choices() -> void:
 	state = "upgrade"
 	center_panel.visible = true
 	var title := center_panel.get_node("MarginContainer/VBoxContainer/Title") as Label
-	title.text = "第 %d 段航线完成 - 选择一项强化" % level
+	title.text = "第 %d 段海道通过 - 选择一项强化" % level
 	for child in upgrade_row.get_children():
 		child.queue_free()
 	var choices := _roll_upgrade_choices()
@@ -297,6 +296,7 @@ func _apply_upgrade(upgrade_id: String) -> void:
 			player.pierce = mini(player.pierce + 1, 4)
 		"speed":
 			player.speed *= 1.15
+			player.forward_speed *= 1.12
 		"heal":
 			player.max_health += 10.0
 			player.heal(35.0)
@@ -307,7 +307,9 @@ func _apply_upgrade(upgrade_id: String) -> void:
 			player.aura_damage += 8.0 + level * 1.5
 			player.aura_radius += 10.0
 		"slow_bullets":
-			enemy_bullet_speed_factor = maxf(0.55, enemy_bullet_speed_factor * 0.85)
+			turret_bullet_speed_factor = maxf(0.55, turret_bullet_speed_factor * 0.85)
+		"lock_jammer":
+			turret_lock_factor *= 1.25
 	selected_upgrade_ids.append(upgrade_id)
 	level += 1
 	_start_level()
@@ -343,18 +345,19 @@ func _reset_player_stats_and_restart() -> void:
 	player.shield_charges = 0
 	player.aura_damage = 0.0
 	player.aura_radius = 118.0
-	enemy_bullet_speed_factor = 1.0
+	turret_bullet_speed_factor = 1.0
+	turret_lock_factor = 1.0
 	aura_timer = 0.0
-	player.position = Vector2(ARENA_SIZE.x * 0.5, ARENA_SIZE.y - 105.0)
+	player.position = Vector2(ARENA_SIZE.x * 0.5, ARENA_SIZE.y - 88.0)
 	_start_run()
 
 func _update_hud() -> void:
 	var upgrades := "none"
 	if not selected_upgrade_ids.is_empty():
 		upgrades = ", ".join(selected_upgrade_ids)
-	hud_label.text = "航线 %d  敌人 %d  船体 %.0f/%.0f  护盾 %d/%d  伤害 %.0f  间隔 %.2fs  弹数 %d  强化: %s" % [
+	hud_label.text = "海道 %d  炮台 %d  船体 %.0f/%.0f  护盾 %d/%d  伤害 %.0f  间隔 %.2fs  弹数 %d  强化: %s" % [
 		level,
-		enemies.size(),
+		turrets.size(),
 		player.health,
 		player.max_health,
 		player.shield_charges,

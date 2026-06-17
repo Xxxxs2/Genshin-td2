@@ -4,8 +4,8 @@ class_name PlayerShip
 signal died
 
 const ARENA_SIZE := Vector2(1280, 720)
-const NAV_MIN_Y := 390.0
-const NAV_MAX_Y := 650.0
+const NAV_MIN_Y := 70.0
+const NAV_MAX_Y := 660.0
 
 var speed := 240.0
 var forward_speed := 180.0
@@ -34,8 +34,8 @@ func _process(delta: float) -> void:
 	position.y += input.y * forward_speed * delta
 	position.x = clamp(position.x, 60.0, ARENA_SIZE.x - 60.0)
 	position.y = clamp(position.y, NAV_MIN_Y, NAV_MAX_Y)
-	var target_tilt := input.x * 0.14
-	rotation = lerp_angle(rotation, target_tilt, 8.0 * delta)
+	if input.length_squared() > 0.02:
+		rotation = lerp_angle(rotation, input.angle() + PI * 0.5, 7.5 * delta)
 	_fire_timer = maxf(0.0, _fire_timer - delta)
 	_invulnerable_timer = maxf(0.0, _invulnerable_timer - delta)
 	if max_shield_charges > 0 and shield_charges < max_shield_charges:

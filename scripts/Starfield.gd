@@ -2,8 +2,6 @@ extends Node2D
 class_name Starfield
 
 var stars: Array[Dictionary] = []
-var scroll_speed := 42.0
-var stripe_offset := 0.0
 
 func _ready() -> void:
 	for i in range(130):
@@ -14,20 +12,16 @@ func _ready() -> void:
 			"color": Color.from_hsv(randf_range(0.5, 0.64), randf_range(0.1, 0.32), randf_range(0.72, 1.0), randf_range(0.45, 0.85))
 		})
 
-func _process(delta: float) -> void:
-	stripe_offset = fmod(stripe_offset + scroll_speed * delta, 160.0)
-	for star in stars:
-		star["position"].y += scroll_speed * delta * (0.65 + star["size"] * 0.18)
-		if star["position"].y > 730.0:
-			star["position"] = Vector2(randf_range(0.0, 1280.0), randf_range(-24.0, 0.0))
+func _process(_delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, Vector2(1280, 720)), Color(0.035, 0.055, 0.11, 1.0))
-	draw_circle(Vector2(1040, 130), 180.0, Color(0.25, 0.48, 0.72, 0.13))
-	draw_circle(Vector2(260, 560), 230.0, Color(0.47, 0.26, 0.56, 0.10))
+	draw_rect(Rect2(Vector2.ZERO, Vector2(1280, 720)), Color(0.035, 0.18, 0.25, 1.0))
+	draw_rect(Rect2(Vector2(170, 0), Vector2(940, 720)), Color(0.04, 0.27, 0.34, 1.0))
+	draw_circle(Vector2(1010, 140), 190.0, Color(0.35, 0.8, 0.92, 0.09))
+	draw_circle(Vector2(230, 560), 230.0, Color(0.24, 0.68, 0.74, 0.08))
 	for star in stars:
 		var pulse: float = 0.55 + sin(Time.get_ticks_msec() * 0.0018 + star.phase) * 0.32
 		draw_circle(star.position, star.size * pulse, star.color)
-	for x in range(-80, 1440, 160):
-		draw_line(Vector2(x, -160 + stripe_offset), Vector2(x - 90, 720 + stripe_offset), Color(0.35, 0.72, 0.95, 0.04), 1.0)
+	for y in range(80, 720, 120):
+		draw_line(Vector2(190, y), Vector2(1090, y + 28), Color(0.68, 0.95, 1.0, 0.045), 1.0)
