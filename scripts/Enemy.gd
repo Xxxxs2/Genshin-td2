@@ -13,6 +13,7 @@ var preferred_range := 250.0
 var fire_interval := 1.45
 var bullet_speed := 250.0
 var bullet_damage := 11.0
+var drift_speed := 70.0
 
 var _fire_timer := 0.0
 var _phase := 0.0
@@ -22,6 +23,7 @@ func setup(level: int, spawn_position: Vector2) -> void:
 	max_health = 42.0 + level * 16.0
 	health = max_health
 	speed = 72.0 + level * 5.0
+	drift_speed = 52.0 + level * 4.5
 	fire_interval = maxf(0.62, 1.65 - level * 0.08)
 	bullet_speed = 220.0 + level * 9.0
 	bullet_damage = 8.0 + level * 1.8
@@ -34,14 +36,11 @@ func tick(delta: float, player: Node2D) -> Array:
 	var distance := maxf(1.0, to_player.length())
 	var direction := to_player / distance
 	var tangent := Vector2(-direction.y, direction.x) * sin(Time.get_ticks_msec() * 0.0015 + _phase)
-	var desired := Vector2.ZERO
-	if distance > preferred_range + 28.0:
-		desired += direction
-	elif distance < preferred_range - 42.0:
-		desired -= direction
-	desired += tangent * 0.36
+	var desired := Vector2.DOWN * 0.82 + tangent * 0.42
+	if distance < preferred_range - 42.0:
+		desired -= direction * 0.38
 	if desired.length_squared() > 0.01:
-		position += desired.normalized() * speed * delta
+		position += desired.normalized() * drift_speed * delta
 		rotation = lerp_angle(rotation, direction.angle(), 8.0 * delta)
 	_fire_timer -= delta
 	if _fire_timer <= 0.0:

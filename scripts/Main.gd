@@ -7,13 +7,16 @@ const StarfieldScript := preload("res://scripts/Starfield.gd")
 
 const ARENA_SIZE := Vector2(1280, 720)
 const UPGRADE_POOL := [
-	{"id": "damage", "name": "Starrail Cannon", "desc": "+25% weapon damage"},
-	{"id": "rate", "name": "Radiant Loader", "desc": "+18% fire rate"},
-	{"id": "range", "name": "Astral Lens", "desc": "+20% weapon range"},
-	{"id": "multishot", "name": "Prism Broadside", "desc": "+1 projectile"},
-	{"id": "pierce", "name": "Comet Pierce", "desc": "+1 pierce"},
-	{"id": "speed", "name": "Wind-Sail Drive", "desc": "+15% ship speed"},
-	{"id": "heal", "name": "Tideguard Core", "desc": "Heal 35 and +10 max HP"}
+	{"id": "damage", "name": "星轨主炮", "desc": "武器伤害 +25%"},
+	{"id": "rate", "name": "辉光装填", "desc": "开火速度 +18%"},
+	{"id": "range", "name": "星象透镜", "desc": "武器射程 +20%"},
+	{"id": "multishot", "name": "棱光侧舷", "desc": "投射物 +1"},
+	{"id": "pierce", "name": "彗星穿透", "desc": "穿透 +1"},
+	{"id": "speed", "name": "风帆机动", "desc": "横向机动 +15%"},
+	{"id": "heal", "name": "潮汐护核", "desc": "回复 35，生命上限 +10"},
+	{"id": "shield", "name": "镜光屏障", "desc": "获得可再生护盾"},
+	{"id": "aura", "name": "回旋星刃", "desc": "船周围周期伤害"},
+	{"id": "slow_bullets", "name": "航线偏转", "desc": "敌方弹幕速度 -15%"}
 ]
 
 var player: Node2D
@@ -22,6 +25,8 @@ var bullets: Array = []
 var level := 1
 var state := "combat"
 var selected_upgrade_ids: Array[String] = []
+var enemy_bullet_speed_factor := 1.0
+var aura_timer := 0.0
 
 var ui_layer: CanvasLayer
 var hud_label: Label
@@ -38,6 +43,7 @@ func _process(delta: float) -> void:
 	if state != "combat":
 		return
 	_handle_player_auto_fire()
+	_handle_player_aura(delta)
 	_tick_enemies(delta)
 	_check_collisions()
 	_cleanup_bullets()
@@ -46,7 +52,7 @@ func _process(delta: float) -> void:
 func _build_world() -> void:
 	add_child(StarfieldScript.new())
 	player = PlayerShipScript.new()
-	player.position = ARENA_SIZE * 0.5
+	player.position = Vector2(ARENA_SIZE.x * 0.5, ARENA_SIZE.y - 105.0)
 	player.died.connect(_on_player_died)
 	add_child(player)
 
@@ -116,12 +122,9 @@ func _start_level() -> void:
 	_update_hud()
 
 func _spawn_enemy(index: int, total: int) -> void:
-	var angle := TAU * float(index) / float(total) + randf_range(-0.18, 0.18)
-	var center := ARENA_SIZE * 0.5
-	var distance := randf_range(280.0, 350.0)
-	var spawn := center + Vector2(cos(angle), sin(angle)) * distance
+	var lane_width := (ARENA_SIZE.x - 180.0) / maxf(1.0, float(total - 1))
+	var spawn := Vector2(90.0 + lane_width * index + randf_range(-36.0, 36.0), -70.0 - float(index % 5) * 68.0)
 	spawn.x = clamp(spawn.x, 90.0, ARENA_SIZE.x - 90.0)
-	spawn.y = clamp(spawn.y, 100.0, ARENA_SIZE.y - 80.0)
 	var enemy := EnemyScript.new()
 	enemy.setup(level, spawn)
 	enemy.killed.connect(_on_enemy_killed)
@@ -145,6 +148,17 @@ func _handle_player_auto_fire() -> void:
 		add_child(bullet)
 	player.mark_fired()
 
+func _handle_player_aura(delta: float) -> void:
+	if player.aura_damage <= 0.0:
+		return
+	aura_timer -= delta
+	if aura_timer > 0.0:
+		return
+	aura_timer = 0.72
+	for enemy in enemies:
+		if is_instance_valid(enemy) and player.position.distance_to(enemy.position) <= player.aura_radius + enemy.radius:
+			enemy.take_damage(player.aura_damage)
+
 func _find_nearest_enemy(max_range: float) -> Node2D:
 	var best: Node2D = null
 	var best_distance := max_range
@@ -162,8 +176,15 @@ func _tick_enemies(delta: float) -> void:
 		if not is_instance_valid(enemy):
 			continue
 		for bullet in enemy.tick(delta, player):
+			bullet.velocity *= enemy_bullet_speed_factor
 			bullets.append(bullet)
 			add_child(bullet)
+		if enemy.position.y > ARENA_SIZE.y + 70.0:
+			player.take_damage(enemy.bullet_damage * 1.5)
+			enemies.erase(enemy)
+			enemy.queue_free()
+	if enemies.is_empty() and state == "combat":
+		_show_upgrade_choices()
 
 func _check_collisions() -> void:
 	for bullet in bullets:
@@ -198,7 +219,7 @@ func _show_upgrade_choices() -> void:
 	state = "upgrade"
 	center_panel.visible = true
 	var title := center_panel.get_node("MarginContainer/VBoxContainer/Title") as Label
-	title.text = "Level %d cleared - choose one blessing" % level
+	title.text = "第 %d 段航线完成 - 选择一项强化" % level
 	for child in upgrade_row.get_children():
 		child.queue_free()
 	var choices := _roll_upgrade_choices()
@@ -234,6 +255,14 @@ func _apply_upgrade(upgrade_id: String) -> void:
 		"heal":
 			player.max_health += 10.0
 			player.heal(35.0)
+		"shield":
+			player.max_shield_charges = mini(player.max_shield_charges + 1, 3)
+			player.shield_charges = player.max_shield_charges
+		"aura":
+			player.aura_damage += 8.0 + level * 1.5
+			player.aura_radius += 10.0
+		"slow_bullets":
+			enemy_bullet_speed_factor = maxf(0.55, enemy_bullet_speed_factor * 0.85)
 	selected_upgrade_ids.append(upgrade_id)
 	level += 1
 	_start_level()
@@ -246,10 +275,10 @@ func _on_player_died() -> void:
 	for child in upgrade_row.get_children():
 		child.queue_free()
 	var title := center_panel.get_node("MarginContainer/VBoxContainer/Title") as Label
-	title.text = "Voyage failed at level %d" % level
+	title.text = "远航在第 %d 段失败" % level
 	var restart := Button.new()
 	restart.custom_minimum_size = Vector2(260, 80)
-	restart.text = "Restart"
+	restart.text = "重新开始"
 	restart.add_theme_font_size_override("font_size", 22)
 	restart.pressed.connect(_reset_player_stats_and_restart)
 	upgrade_row.add_child(restart)
@@ -264,18 +293,26 @@ func _reset_player_stats_and_restart() -> void:
 	player.bullet_speed = 600.0
 	player.bullet_count = 1
 	player.pierce = 0
-	player.position = ARENA_SIZE * 0.5
+	player.max_shield_charges = 0
+	player.shield_charges = 0
+	player.aura_damage = 0.0
+	player.aura_radius = 118.0
+	enemy_bullet_speed_factor = 1.0
+	aura_timer = 0.0
+	player.position = Vector2(ARENA_SIZE.x * 0.5, ARENA_SIZE.y - 105.0)
 	_start_run()
 
 func _update_hud() -> void:
 	var upgrades := "none"
 	if not selected_upgrade_ids.is_empty():
 		upgrades = ", ".join(selected_upgrade_ids)
-	hud_label.text = "Level %d  Enemies %d  Hull %.0f/%.0f  DMG %.0f  Rate %.2fs  Shots %d  Upgrades: %s" % [
+	hud_label.text = "航线 %d  敌人 %d  船体 %.0f/%.0f  护盾 %d/%d  伤害 %.0f  间隔 %.2fs  弹数 %d  强化: %s" % [
 		level,
 		enemies.size(),
 		player.health,
 		player.max_health,
+		player.shield_charges,
+		player.max_shield_charges,
 		player.weapon_damage,
 		player.fire_interval,
 		player.bullet_count,

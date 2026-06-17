@@ -2,6 +2,8 @@ extends Node2D
 class_name Starfield
 
 var stars: Array[Dictionary] = []
+var scroll_speed := 42.0
+var stripe_offset := 0.0
 
 func _ready() -> void:
 	for i in range(130):
@@ -12,7 +14,12 @@ func _ready() -> void:
 			"color": Color.from_hsv(randf_range(0.5, 0.64), randf_range(0.1, 0.32), randf_range(0.72, 1.0), randf_range(0.45, 0.85))
 		})
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	stripe_offset = fmod(stripe_offset + scroll_speed * delta, 160.0)
+	for star in stars:
+		star["position"].y += scroll_speed * delta * (0.65 + star["size"] * 0.18)
+		if star["position"].y > 730.0:
+			star["position"] = Vector2(randf_range(0.0, 1280.0), randf_range(-24.0, 0.0))
 	queue_redraw()
 
 func _draw() -> void:
@@ -22,5 +29,5 @@ func _draw() -> void:
 	for star in stars:
 		var pulse: float = 0.55 + sin(Time.get_ticks_msec() * 0.0018 + star.phase) * 0.32
 		draw_circle(star.position, star.size * pulse, star.color)
-	for x in range(80, 1280, 160):
-		draw_line(Vector2(x, 0), Vector2(x - 90, 720), Color(0.35, 0.72, 0.95, 0.035), 1.0)
+	for x in range(-80, 1440, 160):
+		draw_line(Vector2(x, -160 + stripe_offset), Vector2(x - 90, 720 + stripe_offset), Color(0.35, 0.72, 0.95, 0.04), 1.0)
