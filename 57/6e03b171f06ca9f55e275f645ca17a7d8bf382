@@ -1,0 +1,28 @@
+scripts/TerrainObstacle.gd
+  s_86ff6f6ede1999::t_7bb07a1bf4793e 1-44
+scripts/Main.gd
+  s_86ff6f6ede1999::t_7bb07a1bf4793e 7,10,27,33,52,124-128,132-133,201-222,240-242,244,246-250,333
+  s_86ff6f6ede1999::t_ad6b22aea0a7cb 243,245
+docs/miliastra_blueprint.md
+  s_86ff6f6ede1999::t_7ecbe70405be17 3,13,22,25-30,44,67,77,79-80,90-95
+README.md
+  s_86ff6f6ede1999::t_7ecbe70405be17 3,15,17,24,27
+scripts/PlayerShip.gd
+  s_86ff6f6ede1999::t_7bb07a1bf4793e 7-8,11,32-34,36-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "576e03b171f06ca9f55e275f645ca17a7d8bf382",
+  "prompts": {},
+  "sessions": {
+    "s_86ff6f6ede1999": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed429-0321-7931-af2f-1d361c0fa7dd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "yhliang <lyhxxx@yeah.net>"
+    }
+  }
+}
