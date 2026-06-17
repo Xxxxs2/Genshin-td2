@@ -1,0 +1,29 @@
+scripts/PlayerShip.gd
+  s_86ff6f6ede1999::t_4d414af4f9f983 18-22,26,29-30,32-33,36-40,52-56,72-75,78-81,84-88,90-92
+scripts/Starfield.gd
+  s_86ff6f6ede1999::t_4d414af4f9f983 5-6,17-22,32-33
+scripts/Main.gd
+  s_86ff6f6ede1999::t_4d414af4f9f983 10-19,28-29,46,55,125-126,151-161,179,182-187,222,258-265,278,281,296-302,309,314-315
+scripts/Enemy.gd
+  s_86ff6f6ede1999::t_4d414af4f9f983 16,26,39-41,43
+docs/miliastra_blueprint.md
+  s_86ff6f6ede1999::t_1b3c3efb3b732f 3,11,20-21,23,25-28,64,66-68,74,76-78,80-90
+README.md
+  s_86ff6f6ede1999::t_1b3c3efb3b732f 3,15,17,22-23,25-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "a5f68ae0d32e4524ca2d0311d83622a9192b0a79",
+  "prompts": {},
+  "sessions": {
+    "s_86ff6f6ede1999": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed429-0321-7931-af2f-1d361c0fa7dd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "yhliang <lyhxxx@yeah.net>"
+    }
+  }
+}
