@@ -4,8 +4,10 @@ const PlayerShipScript := preload("res://scripts/PlayerShip.gd")
 const EnemyScript := preload("res://scripts/Enemy.gd")
 const BulletScript := preload("res://scripts/Bullet.gd")
 const StarfieldScript := preload("res://scripts/Starfield.gd")
+const TerrainObstacleScript := preload("res://scripts/TerrainObstacle.gd")
 
 const ARENA_SIZE := Vector2(1280, 720)
+const NAV_RECT := Rect2(Vector2(60, 390), Vector2(1160, 260))
 const UPGRADE_POOL := [
 	{"id": "damage", "name": "星轨主炮", "desc": "武器伤害 +25%"},
 	{"id": "rate", "name": "辉光装填", "desc": "开火速度 +18%"},
@@ -22,11 +24,13 @@ const UPGRADE_POOL := [
 var player: Node2D
 var enemies: Array = []
 var bullets: Array = []
+var obstacles: Array = []
 var level := 1
 var state := "combat"
 var selected_upgrade_ids: Array[String] = []
 var enemy_bullet_speed_factor := 1.0
 var aura_timer := 0.0
+var obstacle_spawn_timer := 0.0
 
 var ui_layer: CanvasLayer
 var hud_label: Label
@@ -45,6 +49,7 @@ func _process(delta: float) -> void:
 	_handle_player_auto_fire()
 	_handle_player_aura(delta)
 	_tick_enemies(delta)
+	_tick_obstacles(delta)
 	_check_collisions()
 	_cleanup_bullets()
 	_update_hud()
@@ -116,9 +121,16 @@ func _start_level() -> void:
 		if is_instance_valid(bullet):
 			bullet.queue_free()
 	bullets.clear()
+	for obstacle in obstacles:
+		if is_instance_valid(obstacle):
+			obstacle.queue_free()
+	obstacles.clear()
+	obstacle_spawn_timer = 0.7
 	var enemy_count := 4 + level * 2
 	for i in range(enemy_count):
 		_spawn_enemy(i, enemy_count)
+	for i in range(2 + mini(level, 3)):
+		_spawn_obstacle(-180.0 - i * 190.0)
 	_update_hud()
 
 func _spawn_enemy(index: int, total: int) -> void:
@@ -186,6 +198,28 @@ func _tick_enemies(delta: float) -> void:
 	if enemies.is_empty() and state == "combat":
 		_show_upgrade_choices()
 
+func _tick_obstacles(delta: float) -> void:
+	obstacle_spawn_timer -= delta
+	if obstacle_spawn_timer <= 0.0:
+		obstacle_spawn_timer = maxf(1.35, 2.6 - level * 0.08)
+		if obstacles.size() < 5 + mini(level, 4):
+			_spawn_obstacle(randf_range(-120.0, -40.0))
+	for obstacle in obstacles.duplicate():
+		if not is_instance_valid(obstacle):
+			obstacles.erase(obstacle)
+			continue
+		if obstacle.position.y > ARENA_SIZE.y + obstacle.radius + 30.0:
+			obstacles.erase(obstacle)
+			obstacle.queue_free()
+
+func _spawn_obstacle(spawn_y: float) -> void:
+	var obstacle := TerrainObstacleScript.new()
+	var radius := randf_range(34.0, 58.0)
+	var x := randf_range(120.0 + radius, ARENA_SIZE.x - 120.0 - radius)
+	obstacle.setup(Vector2(x, spawn_y), radius, randf_range(48.0, 72.0) + level * 2.0, 8.0 + level * 1.2)
+	obstacles.append(obstacle)
+	add_child(obstacle)
+
 func _check_collisions() -> void:
 	for bullet in bullets:
 		if not is_instance_valid(bullet):
@@ -203,6 +237,17 @@ func _check_collisions() -> void:
 			if bullet.position.distance_to(player.position) <= bullet.radius + player.radius:
 				player.take_damage(bullet.damage)
 				bullet.queue_free()
+	for obstacle in obstacles:
+		if not is_instance_valid(obstacle):
+			continue
+		var offset: Vector2 = player.position - obstacle.position
+		var min_distance: float = player.radius + obstacle.radius
+		var distance: float = offset.length()
+		if distance < min_distance and distance > 0.01:
+			player.position = obstacle.position + offset.normalized() * min_distance
+			player.position.x = clamp(player.position.x, NAV_RECT.position.x, NAV_RECT.end.x)
+			player.position.y = clamp(player.position.y, NAV_RECT.position.y, NAV_RECT.end.y)
+			player.take_damage(obstacle.damage)
 
 func _cleanup_bullets() -> void:
 	bullets = bullets.filter(func(bullet) -> bool:
@@ -285,6 +330,7 @@ func _on_player_died() -> void:
 
 func _reset_player_stats_and_restart() -> void:
 	player.speed = 240.0
+	player.forward_speed = 180.0
 	player.max_health = 120.0
 	player.health = 120.0
 	player.weapon_damage = 18.0
