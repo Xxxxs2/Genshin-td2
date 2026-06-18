@@ -7,8 +7,10 @@ const IslandScript := preload("res://scripts/Island.gd")
 const TurretScript := preload("res://scripts/Turret.gd")
 
 const ARENA_SIZE := Vector2(1280, 720)
-const MAP_BOUNDS := Rect2(Vector2(50, 50), Vector2(1180, 620))
-const EXIT_RECT := Rect2(Vector2(520, 42), Vector2(240, 58))
+const WORLD_SIZE := Vector2(1280, 3600)
+const MAP_BOUNDS := Rect2(Vector2(50, 70), Vector2(1180, 3460))
+const START_POSITION := Vector2(640, 3460)
+const EXIT_RECT := Rect2(Vector2(500, 35), Vector2(280, 95))
 const UPGRADE_POOL := [
 	{"id": "damage", "name": "星轨主炮", "desc": "武器伤害 +25%"},
 	{"id": "rate", "name": "辉光装填", "desc": "开火速度 +18%"},
@@ -57,11 +59,23 @@ func _process(delta: float) -> void:
 	_update_hud()
 
 func _build_world() -> void:
-	add_child(StarfieldScript.new())
+	var ocean := StarfieldScript.new()
+	ocean.setup(WORLD_SIZE)
+	add_child(ocean)
 	player = PlayerShipScript.new()
-	player.position = Vector2(ARENA_SIZE.x * 0.5, ARENA_SIZE.y - 105.0)
+	player.position = START_POSITION
+	player.navigation_bounds = MAP_BOUNDS
 	player.died.connect(_on_player_died)
 	add_child(player)
+	var camera := Camera2D.new()
+	camera.position_smoothing_enabled = true
+	camera.position_smoothing_speed = 6.0
+	camera.limit_left = 0
+	camera.limit_right = int(WORLD_SIZE.x)
+	camera.limit_top = 0
+	camera.limit_bottom = int(WORLD_SIZE.y)
+	player.add_child(camera)
+	queue_redraw()
 
 func _build_ui() -> void:
 	ui_layer = CanvasLayer.new()
@@ -127,42 +141,59 @@ func _start_level() -> void:
 		if is_instance_valid(island):
 			island.queue_free()
 	islands.clear()
-	player.position = Vector2(ARENA_SIZE.x * 0.5, ARENA_SIZE.y - 88.0)
+	player.position = START_POSITION
 	_build_seaway_level()
 	_update_hud()
 
 func _build_seaway_level() -> void:
-	var layouts := [
-		[
-			{"pos": Vector2(300, 470), "r": 92, "turret": Vector2(300, 430)},
-			{"pos": Vector2(760, 405), "r": 116, "turret": Vector2(725, 365)},
-			{"pos": Vector2(1015, 235), "r": 88, "turret": Vector2(990, 200)}
-		],
-		[
-			{"pos": Vector2(430, 520), "r": 108, "turret": Vector2(465, 480)},
-			{"pos": Vector2(850, 495), "r": 96, "turret": Vector2(815, 455)},
-			{"pos": Vector2(650, 245), "r": 125, "turret": Vector2(650, 205)}
-		],
-		[
-			{"pos": Vector2(245, 360), "r": 104, "turret": Vector2(280, 320)},
-			{"pos": Vector2(650, 450), "r": 112, "turret": Vector2(650, 405)},
-			{"pos": Vector2(1020, 345), "r": 106, "turret": Vector2(980, 300)},
-			{"pos": Vector2(520, 175), "r": 76, "turret": Vector2(520, 145)}
-		]
-	]
-	var layout: Array = layouts[(level - 1) % layouts.size()]
-	for item in layout:
-		_spawn_island(item["pos"], item["r"], item["turret"])
-	if level > 3:
-		_spawn_island(Vector2(350 + (level % 3) * 260, 300), 78.0, Vector2(350 + (level % 3) * 260, 265))
+	# Edge archipelagos keep the player inside a readable seaway without making a straight corridor.
+	for y in range(260, 3460, 310):
+		var wave := sin(float(y) * 0.0047) * 58.0
+		_spawn_island(Vector2(8 + wave, y), 150.0, false)
+		_spawn_island(Vector2(1272 + wave, y + 120), 155.0, false)
 
-func _spawn_island(pos: Vector2, radius: float, turret_pos: Vector2) -> void:
+	var mirror := -1.0 if level % 2 == 0 else 1.0
+	var layout := [
+		# First fork: short defended left channel or longer open right channel.
+		{"pos": Vector2(640, 3060), "r": 190.0, "turret": true},
+		{"pos": Vector2(355, 2850), "r": 112.0, "turret": true},
+		{"pos": Vector2(885, 2730), "r": 145.0, "turret": false},
+		# Bent middle section with three navigable gaps.
+		{"pos": Vector2(600, 2390), "r": 155.0, "turret": true},
+		{"pos": Vector2(930, 2240), "r": 135.0, "turret": true},
+		{"pos": Vector2(300, 2100), "r": 125.0, "turret": false},
+		{"pos": Vector2(650, 1880), "r": 205.0, "turret": true},
+		# Second fork: outer routes curve around a central fortress island.
+		{"pos": Vector2(380, 1540), "r": 130.0, "turret": true},
+		{"pos": Vector2(735, 1450), "r": 175.0, "turret": true},
+		{"pos": Vector2(1015, 1270), "r": 105.0, "turret": false},
+		{"pos": Vector2(520, 1050), "r": 145.0, "turret": true},
+		# Final S bend before the exit.
+		{"pos": Vector2(850, 790), "r": 160.0, "turret": true},
+		{"pos": Vector2(390, 610), "r": 135.0, "turret": false},
+		{"pos": Vector2(650, 350), "r": 120.0, "turret": true}
+	]
+	for item in layout:
+		var pos: Vector2 = item["pos"]
+		pos.x = 640.0 + (pos.x - 640.0) * mirror
+		_spawn_island(pos, item["r"], item["turret"])
+	if level > 2:
+		var extra_count := mini(level - 2, 4)
+		for i in range(extra_count):
+			var extra_y := 2750.0 - i * 570.0
+			var extra_x := 210.0 if (i + level) % 2 == 0 else 1070.0
+			_spawn_island(Vector2(extra_x, extra_y), 82.0, true)
+
+func _spawn_island(pos: Vector2, radius: float, has_turret: bool = true) -> void:
 	var island := IslandScript.new()
 	island.setup(pos, radius)
 	islands.append(island)
 	add_child(island)
+	if not has_turret:
+		return
 	var turret := TurretScript.new()
-	turret.setup(turret_pos, level)
+	var turret_offset := Vector2(0, -radius * 0.3)
+	turret.setup(pos + turret_offset, level)
 	turret.lock_time *= turret_lock_factor
 	turret.destroyed.connect(_on_turret_destroyed)
 	turrets.append(turret)
@@ -348,15 +379,17 @@ func _reset_player_stats_and_restart() -> void:
 	turret_bullet_speed_factor = 1.0
 	turret_lock_factor = 1.0
 	aura_timer = 0.0
-	player.position = Vector2(ARENA_SIZE.x * 0.5, ARENA_SIZE.y - 88.0)
+	player.position = START_POSITION
 	_start_run()
 
 func _update_hud() -> void:
 	var upgrades := "none"
 	if not selected_upgrade_ids.is_empty():
 		upgrades = ", ".join(selected_upgrade_ids)
-	hud_label.text = "海道 %d  炮台 %d  船体 %.0f/%.0f  护盾 %d/%d  伤害 %.0f  间隔 %.2fs  弹数 %d  强化: %s" % [
+	var progress := clampf((START_POSITION.y - player.position.y) / (START_POSITION.y - EXIT_RECT.end.y), 0.0, 1.0)
+	hud_label.text = "海道 %d  航程 %d%%  炮台 %d  船体 %.0f/%.0f  护盾 %d/%d  伤害 %.0f  间隔 %.2fs  弹数 %d  强化: %s" % [
 		level,
+		int(progress * 100.0),
 		turrets.size(),
 		player.health,
 		player.max_health,
@@ -367,3 +400,9 @@ func _update_hud() -> void:
 		player.bullet_count,
 		upgrades
 	]
+
+func _draw() -> void:
+	draw_rect(EXIT_RECT, Color(0.48, 0.94, 1.0, 0.16))
+	draw_arc(EXIT_RECT.get_center(), 92.0, PI, TAU, 64, Color(0.72, 0.98, 1.0, 0.9), 6.0)
+	draw_line(Vector2(500, 128), Vector2(780, 128), Color(0.88, 0.83, 0.48, 0.8), 4.0)
+	draw_circle(START_POSITION, 78.0, Color(0.38, 0.88, 1.0, 0.08))

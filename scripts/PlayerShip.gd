@@ -3,12 +3,9 @@ class_name PlayerShip
 
 signal died
 
-const ARENA_SIZE := Vector2(1280, 720)
-const NAV_MIN_Y := 70.0
-const NAV_MAX_Y := 660.0
-
 var speed := 240.0
 var forward_speed := 180.0
+var navigation_bounds := Rect2(Vector2(50, 50), Vector2(1180, 3500))
 var max_health := 120.0
 var health := 120.0
 var radius := 26.0
@@ -32,8 +29,8 @@ func _process(delta: float) -> void:
 	var input := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	position.x += input.x * speed * delta
 	position.y += input.y * forward_speed * delta
-	position.x = clamp(position.x, 60.0, ARENA_SIZE.x - 60.0)
-	position.y = clamp(position.y, NAV_MIN_Y, NAV_MAX_Y)
+	position.x = clamp(position.x, navigation_bounds.position.x, navigation_bounds.end.x)
+	position.y = clamp(position.y, navigation_bounds.position.y, navigation_bounds.end.y)
 	if input.length_squared() > 0.02:
 		rotation = lerp_angle(rotation, input.angle() + PI * 0.5, 7.5 * delta)
 	_fire_timer = maxf(0.0, _fire_timer - delta)
