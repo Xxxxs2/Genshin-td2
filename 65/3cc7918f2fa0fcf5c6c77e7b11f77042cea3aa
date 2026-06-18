@@ -1,0 +1,28 @@
+docs/miliastra_blueprint.md
+  s_86ff6f6ede1999::t_43579d23aaafa5 3,22,79-80,88,91-105
+scripts/Starfield.gd
+  s_86ff6f6ede1999::t_43579d23aaafa5 5,7-9,11,17-20,25-27,30,34-35
+  s_86ff6f6ede1999::t_1f08bff8602c37 28-29
+scripts/Main.gd
+  s_86ff6f6ede1999::t_43579d23aaafa5 10-13,62-64,66-67,70-78,144,149-174,177-187,192-193,195-196,382,389-390,392,403-408
+README.md
+  s_86ff6f6ede1999::t_43579d23aaafa5 3,24,27-28
+scripts/PlayerShip.gd
+  s_86ff6f6ede1999::t_43579d23aaafa5 8,32-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "653cc7918f2fa0fcf5c6c77e7b11f77042cea3aa",
+  "prompts": {},
+  "sessions": {
+    "s_86ff6f6ede1999": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed429-0321-7931-af2f-1d361c0fa7dd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "yhliang <lyhxxx@yeah.net>"
+    }
+  }
+}
