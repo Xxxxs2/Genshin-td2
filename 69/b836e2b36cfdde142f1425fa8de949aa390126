@@ -1,0 +1,23 @@
+README.md
+  s_86ff6f6ede1999::t_735c01b8eace68 46
+docs/miliastra_blueprint.md
+  s_86ff6f6ede1999::t_68525ad67af56f 13-23,28,467,482,499,509,535,551
+  s_86ff6f6ede1999::t_735c01b8eace68 571-745
+  s_86ff6f6ede1999::t_2b7e293b50f5fd 3,5,7-12,24-27,29-92,94-465
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "69b836e2b36cfdde142f1425fa8de949aa390126",
+  "prompts": {},
+  "sessions": {
+    "s_86ff6f6ede1999": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed429-0321-7931-af2f-1d361c0fa7dd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "yhliang <lyhxxx@yeah.net>"
+    }
+  }
+}
