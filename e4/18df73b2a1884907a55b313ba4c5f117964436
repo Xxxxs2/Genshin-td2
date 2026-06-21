@@ -1,0 +1,37 @@
+scripts/SeaMine.gd
+  s_86ff6f6ede1999::t_dd256a09f9db4f 1-26
+scripts/Main.gd
+  s_86ff6f6ede1999::t_d2fb94c1b472e4 281-282,284
+  s_86ff6f6ede1999::t_d1efa142c479e9 8-9,27-31,38-39,47-49,53-54,68-69,73,76,108-115,171-181,196-197,200-201,203,205-206,208,210,212,217,223-227,229,238,243-250,255,269-280,283,285-295,297-304,328-340,376-390,394-414,416-424,429-431,438-440,443-445,500-510,569-574,588,592-593,604-615
+  s_86ff6f6ede1999::t_d7e76d2f419694 415,425
+  s_86ff6f6ede1999::t_2f6aff66115f68 43,153,296,511,516-541,582,589,599-601
+tests/SmokeTest.gd
+  s_86ff6f6ede1999::t_283d84a8fc8077 1-53
+scripts/PlayerShip.gd
+  s_86ff6f6ede1999::t_dd256a09f9db4f 18-23,31-32,45-46,61-75,120-121
+docs/miliastra_blueprint.md
+  s_86ff6f6ede1999::t_2f6aff66115f68 23-24,27-31,43,75-84,95-97
+scripts/RouteBeacon.gd
+  s_86ff6f6ede1999::t_dd256a09f9db4f 1-9,11-25,27-28,41-42,45-67
+  s_86ff6f6ede1999::t_283d84a8fc8077 10,26,29-40,43-44
+README.md
+  s_86ff6f6ede1999::t_2f6aff66115f68 16-17,19,30-34
+scripts/Turret.gd
+  s_86ff6f6ede1999::t_dd256a09f9db4f 16-17,22,24,26-27,34-50,58,67-82,97-109,116-117,120-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "e418df73b2a1884907a55b313ba4c5f117964436",
+  "prompts": {},
+  "sessions": {
+    "s_86ff6f6ede1999": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed429-0321-7931-af2f-1d361c0fa7dd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "yhliang <lyhxxx@yeah.net>"
+    }
+  }
+}
