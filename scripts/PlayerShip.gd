@@ -5,7 +5,10 @@ signal died
 
 var speed := 240.0
 var forward_speed := 180.0
+var boost_multiplier := 1.7
+var forward_acceleration := 320.0
 var navigation_bounds := Rect2(Vector2(50, 50), Vector2(1180, 3500))
+var movement_enabled := true
 var max_health := 120.0
 var health := 120.0
 var radius := 26.0
@@ -32,15 +35,25 @@ var _side_fire_timer := 0.0
 var _mine_timer := 0.0
 var _invulnerable_timer := 0.0
 var _shield_timer := 0.0
+var _current_forward_speed := 180.0
+var _steer_input := 0.0
+var _is_boosting := false
 
 func _process(delta: float) -> void:
-	var input := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	position.x += input.x * speed * delta
-	position.y += input.y * forward_speed * delta
-	position.x = clamp(position.x, navigation_bounds.position.x, navigation_bounds.end.x)
-	position.y = clamp(position.y, navigation_bounds.position.y, navigation_bounds.end.y)
-	if input.length_squared() > 0.02:
-		rotation = lerp_angle(rotation, input.angle() + PI * 0.5, 7.5 * delta)
+	if movement_enabled:
+		_steer_input = Input.get_axis("move_left", "move_right")
+		_is_boosting = Input.is_action_pressed("move_up")
+		var target_forward_speed := forward_speed * (boost_multiplier if _is_boosting else 1.0)
+		_current_forward_speed = move_toward(_current_forward_speed, target_forward_speed, forward_acceleration * delta)
+		position.x += _steer_input * speed * delta
+		position.y -= _current_forward_speed * delta
+		position.x = clamp(position.x, navigation_bounds.position.x, navigation_bounds.end.x)
+		position.y = clamp(position.y, navigation_bounds.position.y, navigation_bounds.end.y)
+		var target_rotation := _steer_input * 0.28
+		rotation = lerp_angle(rotation, target_rotation, 6.5 * delta)
+	else:
+		_steer_input = 0.0
+		_is_boosting = false
 	_fire_timer = maxf(0.0, _fire_timer - delta)
 	_side_fire_timer = maxf(0.0, _side_fire_timer - delta)
 	_mine_timer = maxf(0.0, _mine_timer - delta)
@@ -72,6 +85,18 @@ func mark_mine_dropped() -> void:
 
 func forward_vector() -> Vector2:
 	return Vector2.UP.rotated(rotation)
+
+func current_forward_speed() -> float:
+	return _current_forward_speed
+
+func is_boosting() -> bool:
+	return _is_boosting
+
+func reset_navigation_state() -> void:
+	_current_forward_speed = forward_speed
+	_steer_input = 0.0
+	_is_boosting = false
+	rotation = 0.0
 
 func take_damage(amount: float) -> void:
 	if _invulnerable_timer > 0.0:
@@ -119,3 +144,7 @@ func _draw() -> void:
 	draw_line(Vector2(29, 7), Vector2(5, -12), Color(0.86, 0.95, 1.0, 0.85), 3.0)
 	draw_circle(Vector2(-29, 5), 5.0, Color(1.0, 0.82, 0.42, 0.95))
 	draw_circle(Vector2(29, 5), 5.0, Color(1.0, 0.82, 0.42, 0.95))
+	var wake_length := 32.0 + (_current_forward_speed / maxf(1.0, forward_speed) - 1.0) * 30.0
+	var wake_color := Color(0.56, 0.94, 1.0, 0.78 if _is_boosting else 0.42)
+	draw_line(Vector2(-12, 28), Vector2(-18, 28 + wake_length), wake_color, 4.0)
+	draw_line(Vector2(12, 28), Vector2(18, 28 + wake_length), wake_color, 4.0)

@@ -101,7 +101,7 @@ func _build_ui() -> void:
 
 	hud_label = Label.new()
 	hud_label.position = Vector2(24, 18)
-	hud_label.add_theme_font_size_override("font_size", 20)
+	hud_label.add_theme_font_size_override("font_size", 17)
 	hud_label.add_theme_color_override("font_color", Color(0.9, 0.96, 1.0))
 	ui_layer.add_child(hud_label)
 
@@ -155,6 +155,7 @@ func _start_run() -> void:
 
 func _start_level() -> void:
 	state = "combat"
+	player.movement_enabled = true
 	center_panel.visible = false
 	for turret in turrets:
 		if is_instance_valid(turret):
@@ -180,6 +181,7 @@ func _start_level() -> void:
 	elite_alive = false
 	current_route_name = "未选择"
 	player.position = START_POSITION
+	player.reset_navigation_state()
 	_build_seaway_level()
 	_update_hud()
 
@@ -448,6 +450,7 @@ func _on_turret_destroyed(turret) -> void:
 
 func _show_upgrade_choices() -> void:
 	state = "upgrade"
+	player.movement_enabled = false
 	center_panel.visible = true
 	var title := center_panel.get_node("MarginContainer/VBoxContainer/Title") as Label
 	title.text = "第 %d 段海道通过 - 选择一项强化" % level
@@ -543,6 +546,7 @@ func _on_player_died() -> void:
 	if state == "failed":
 		return
 	state = "failed"
+	player.movement_enabled = false
 	center_panel.visible = true
 	for child in upgrade_row.get_children():
 		child.queue_free()
@@ -586,9 +590,12 @@ func _reset_player_stats_and_restart() -> void:
 func _update_hud() -> void:
 	var progress := clampf((START_POSITION.y - player.position.y) / (START_POSITION.y - EXIT_RECT.end.y), 0.0, 1.0)
 	var fortress_status := "封锁" if elite_alive else "开放"
-	hud_label.text = "海道 %d  航程 %d%%  航线:%s  出口:%s  炮台 %d  船体 %.0f/%.0f  护盾 %d/%d  共鸣 炮%d 防%d 机%d" % [
+	var speed_state := "加速" if player.is_boosting() else "巡航"
+	hud_label.text = "海道 %d  航程 %d%%  %s %.0f  航线:%s  出口:%s  炮台 %d  船体 %.0f/%.0f  护盾 %d/%d  共鸣 炮%d 防%d 机%d" % [
 		level,
 		int(progress * 100.0),
+		speed_state,
+		player.current_forward_speed(),
 		current_route_name,
 		fortress_status,
 		turrets.size(),

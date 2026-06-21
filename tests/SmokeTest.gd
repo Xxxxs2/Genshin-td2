@@ -14,6 +14,28 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 
+	main.player.set_process(false)
+	main.player.position = main.START_POSITION
+	main.player.reset_navigation_state()
+	var cruise_start_y: float = main.player.position.y
+	main.player._process(0.25)
+	var cruise_distance: float = cruise_start_y - main.player.position.y
+	if cruise_distance <= 0.0:
+		_fail("航船在无输入时没有自动向前巡航")
+		return
+
+	main.player.position = main.START_POSITION
+	main.player.reset_navigation_state()
+	Input.action_press("move_up")
+	var boost_start_y: float = main.player.position.y
+	main.player._process(0.25)
+	Input.action_release("move_up")
+	var boost_distance: float = boost_start_y - main.player.position.y
+	main.player.set_process(true)
+	if boost_distance <= cruise_distance:
+		_fail("按住前进键后航船没有加速")
+		return
+
 	var base_damage: float = main.player.weapon_damage
 	var risk_beacon = null
 	for beacon in main.route_beacons:
@@ -48,6 +70,12 @@ func _run() -> void:
 	if main.state != "upgrade":
 		_fail("进入开放出口后没有触发三选一强化")
 		return
+	var stopped_y: float = main.player.position.y
+	for i in range(5):
+		await process_frame
+	if not is_equal_approx(main.player.position.y, stopped_y):
+		_fail("三选一界面出现后航船仍在移动")
+		return
 
-	print("Smoke test passed: route reward -> elite unlock -> upgrade choice")
+	print("Smoke test passed: cruise -> boost -> route reward -> elite unlock -> stopped upgrade choice")
 	quit(0)
