@@ -15,6 +15,12 @@ var fire_interval := 0.48
 var bullet_speed := 600.0
 var bullet_count := 1
 var pierce := 0
+var side_damage := 11.0
+var side_range := 245.0
+var side_fire_interval := 1.05
+var mine_damage := 0.0
+var mine_radius := 96.0
+var mine_interval := 1.65
 var max_shield_charges := 0
 var shield_charges := 0
 var shield_recharge_interval := 7.5
@@ -22,6 +28,8 @@ var aura_damage := 0.0
 var aura_radius := 118.0
 
 var _fire_timer := 0.0
+var _side_fire_timer := 0.0
+var _mine_timer := 0.0
 var _invulnerable_timer := 0.0
 var _shield_timer := 0.0
 
@@ -34,6 +42,8 @@ func _process(delta: float) -> void:
 	if input.length_squared() > 0.02:
 		rotation = lerp_angle(rotation, input.angle() + PI * 0.5, 7.5 * delta)
 	_fire_timer = maxf(0.0, _fire_timer - delta)
+	_side_fire_timer = maxf(0.0, _side_fire_timer - delta)
+	_mine_timer = maxf(0.0, _mine_timer - delta)
 	_invulnerable_timer = maxf(0.0, _invulnerable_timer - delta)
 	if max_shield_charges > 0 and shield_charges < max_shield_charges:
 		_shield_timer -= delta
@@ -47,6 +57,21 @@ func can_fire() -> bool:
 
 func mark_fired() -> void:
 	_fire_timer = fire_interval
+
+func can_side_fire() -> bool:
+	return _side_fire_timer <= 0.0
+
+func mark_side_fired() -> void:
+	_side_fire_timer = side_fire_interval
+
+func can_drop_mine() -> bool:
+	return mine_damage > 0.0 and _mine_timer <= 0.0
+
+func mark_mine_dropped() -> void:
+	_mine_timer = mine_interval
+
+func forward_vector() -> Vector2:
+	return Vector2.UP.rotated(rotation)
 
 func take_damage(amount: float) -> void:
 	if _invulnerable_timer > 0.0:
@@ -92,3 +117,5 @@ func _draw() -> void:
 	draw_circle(Vector2(0, 2), 11.0, Color(0.96, 0.75, 0.28, 1.0))
 	draw_line(Vector2(-29, 7), Vector2(-5, -12), Color(0.86, 0.95, 1.0, 0.85), 3.0)
 	draw_line(Vector2(29, 7), Vector2(5, -12), Color(0.86, 0.95, 1.0, 0.85), 3.0)
+	draw_circle(Vector2(-29, 5), 5.0, Color(1.0, 0.82, 0.42, 0.95))
+	draw_circle(Vector2(29, 5), 5.0, Color(1.0, 0.82, 0.42, 0.95))
