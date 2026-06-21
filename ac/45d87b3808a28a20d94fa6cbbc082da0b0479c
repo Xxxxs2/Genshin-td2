@@ -1,0 +1,29 @@
+docs/miliastra_blueprint.md
+  s_86ff6f6ede1999::t_28f839fdf642ed 23-32,91,107,112
+tests/SmokeTest.gd
+  s_86ff6f6ede1999::t_21b475e6212148 17-19,21,27-28,31,34-35
+  s_86ff6f6ede1999::t_fbbe0d0c2be045 20,22-26,29-30,32-33,36-38,73-78,80
+scripts/Main.gd
+  s_86ff6f6ede1999::t_28f839fdf642ed 158,184,453,549,593-594,597-598
+  s_86ff6f6ede1999::t_fbbe0d0c2be045 104
+scripts/PlayerShip.gd
+  s_86ff6f6ede1999::t_28f839fdf642ed 8-9,11,38-40,43-56,89-100,147-150
+README.md
+  s_86ff6f6ede1999::t_28f839fdf642ed 3,15-18,29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "ac45d87b3808a28a20d94fa6cbbc082da0b0479c",
+  "prompts": {},
+  "sessions": {
+    "s_86ff6f6ede1999": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed429-0321-7931-af2f-1d361c0fa7dd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "yhliang <lyhxxx@yeah.net>"
+    }
+  }
+}
