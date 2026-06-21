@@ -19,7 +19,7 @@ const UPGRADE_POOL := [
 	{"id": "range", "name": "星象透镜", "desc": "武器射程 +20%"},
 	{"id": "multishot", "name": "棱光侧舷", "desc": "投射物 +1"},
 	{"id": "pierce", "name": "彗星穿透", "desc": "穿透 +1"},
-	{"id": "speed", "name": "风帆机动", "desc": "横向机动 +15%"},
+	{"id": "speed", "name": "风帆机动", "desc": "航速与转向 +12%"},
 	{"id": "heal", "name": "潮汐护核", "desc": "回复 35，生命上限 +10"},
 	{"id": "shield", "name": "镜光屏障", "desc": "获得可再生护盾"},
 	{"id": "aura", "name": "回旋星刃", "desc": "船周围周期伤害"},
@@ -422,8 +422,8 @@ func _apply_route_reward(route_type: String) -> void:
 			_show_notice("辉金秘航：投射物 +1，并补满护盾")
 		_:
 			player.heal(24.0)
-			player.speed *= 1.04
 			player.forward_speed *= 1.04
+			player.turn_speed *= 1.04
 			_show_notice("澄蓝稳流：修复 24 船体，本次远航机动 +4%")
 
 func _check_exit() -> void:
@@ -485,8 +485,8 @@ func _apply_upgrade(upgrade_id: String) -> void:
 		"pierce":
 			player.pierce = mini(player.pierce + 1, 4)
 		"speed":
-			player.speed *= 1.15
 			player.forward_speed *= 1.12
+			player.turn_speed *= 1.12
 		"heal":
 			player.max_health += 10.0
 			player.heal(35.0)
@@ -537,8 +537,8 @@ func _register_upgrade_family(upgrade_id: String) -> void:
 			player.heal(45.0)
 			_show_notice("构筑共鸣：潮汐壁垒已激活，护盾与船体强化")
 		"机动":
-			player.speed *= 1.12
 			player.forward_speed *= 1.12
+			player.turn_speed *= 1.12
 			player.mine_damage = maxf(player.mine_damage, 36.0)
 			_show_notice("构筑共鸣：风帆雷迹已激活，提速并自动布雷")
 
@@ -560,8 +560,8 @@ func _on_player_died() -> void:
 	upgrade_row.add_child(restart)
 
 func _reset_player_stats_and_restart() -> void:
-	player.speed = 240.0
 	player.forward_speed = 180.0
+	player.turn_speed = 3.8
 	player.max_health = 120.0
 	player.health = 120.0
 	player.weapon_damage = 18.0

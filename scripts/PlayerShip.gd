@@ -3,10 +3,10 @@ class_name PlayerShip
 
 signal died
 
-var speed := 240.0
 var forward_speed := 180.0
 var boost_multiplier := 1.7
 var forward_acceleration := 320.0
+var turn_speed := 3.8
 var navigation_bounds := Rect2(Vector2(50, 50), Vector2(1180, 3500))
 var movement_enabled := true
 var max_health := 120.0
@@ -36,23 +36,23 @@ var _mine_timer := 0.0
 var _invulnerable_timer := 0.0
 var _shield_timer := 0.0
 var _current_forward_speed := 180.0
-var _steer_input := 0.0
+var _steering_direction := Vector2.UP
 var _is_boosting := false
 
 func _process(delta: float) -> void:
 	if movement_enabled:
-		_steer_input = Input.get_axis("move_left", "move_right")
-		_is_boosting = Input.is_action_pressed("move_up")
+		var direction_input := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+		if direction_input.length_squared() > 0.01:
+			_steering_direction = direction_input.normalized()
+			var target_rotation := _steering_direction.angle() + PI * 0.5
+			rotation = lerp_angle(rotation, target_rotation, turn_speed * delta)
+		_is_boosting = Input.is_action_pressed("boost")
 		var target_forward_speed := forward_speed * (boost_multiplier if _is_boosting else 1.0)
 		_current_forward_speed = move_toward(_current_forward_speed, target_forward_speed, forward_acceleration * delta)
-		position.x += _steer_input * speed * delta
-		position.y -= _current_forward_speed * delta
+		position += forward_vector() * _current_forward_speed * delta
 		position.x = clamp(position.x, navigation_bounds.position.x, navigation_bounds.end.x)
 		position.y = clamp(position.y, navigation_bounds.position.y, navigation_bounds.end.y)
-		var target_rotation := _steer_input * 0.28
-		rotation = lerp_angle(rotation, target_rotation, 6.5 * delta)
 	else:
-		_steer_input = 0.0
 		_is_boosting = false
 	_fire_timer = maxf(0.0, _fire_timer - delta)
 	_side_fire_timer = maxf(0.0, _side_fire_timer - delta)
@@ -94,7 +94,7 @@ func is_boosting() -> bool:
 
 func reset_navigation_state() -> void:
 	_current_forward_speed = forward_speed
-	_steer_input = 0.0
+	_steering_direction = Vector2.UP
 	_is_boosting = false
 	rotation = 0.0
 

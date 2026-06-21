@@ -14,6 +14,18 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 
+	if not InputMap.has_action("boost"):
+		_fail("项目没有配置 Shift 加速动作")
+		return
+	var has_shift_binding := false
+	for event in InputMap.action_get_events("boost"):
+		if event is InputEventKey and event.keycode == KEY_SHIFT:
+			has_shift_binding = true
+			break
+	if not has_shift_binding:
+		_fail("加速动作没有绑定到 Shift 键")
+		return
+
 	main.player.set_process(false)
 	main.player.position = main.START_POSITION
 	main.player.reset_navigation_state()
@@ -26,14 +38,26 @@ func _run() -> void:
 
 	main.player.position = main.START_POSITION
 	main.player.reset_navigation_state()
-	Input.action_press("move_up")
+	Input.action_press("boost")
 	var boost_start_y: float = main.player.position.y
 	main.player._process(0.25)
-	Input.action_release("move_up")
+	Input.action_release("boost")
 	var boost_distance: float = boost_start_y - main.player.position.y
 	main.player.set_process(true)
 	if boost_distance <= cruise_distance:
-		_fail("按住前进键后航船没有加速")
+		_fail("按住 Shift 后航船没有加速")
+		return
+
+	main.player.set_process(false)
+	main.player.position = main.START_POSITION
+	main.player.reset_navigation_state()
+	Input.action_press("move_right")
+	for i in range(8):
+		main.player._process(0.1)
+	Input.action_release("move_right")
+	main.player.set_process(true)
+	if main.player.position.x <= main.START_POSITION.x or absf(main.player.rotation) < 0.2:
+		_fail("方向输入没有改变航向并带动船体转弯")
 		return
 
 	var base_damage: float = main.player.weapon_damage
@@ -77,5 +101,5 @@ func _run() -> void:
 		_fail("三选一界面出现后航船仍在移动")
 		return
 
-	print("Smoke test passed: cruise -> boost -> route reward -> elite unlock -> stopped upgrade choice")
+	print("Smoke test passed: cruise -> steering -> shift boost -> route reward -> elite unlock -> stopped upgrade choice")
 	quit(0)
