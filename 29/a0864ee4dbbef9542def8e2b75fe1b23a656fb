@@ -1,0 +1,23 @@
+docs/miliastra_blueprint.md
+  s_86ff6f6ede1999::t_c37f3d5fdf106c 418-466,485-524,530-543,608-631
+scripts/PlayerShip.gd
+  s_86ff6f6ede1999::t_c37f3d5fdf106c 126-135
+README.md
+  s_86ff6f6ede1999::t_c37f3d5fdf106c 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "29a0864ee4dbbef9542def8e2b75fe1b23a656fb",
+  "prompts": {},
+  "sessions": {
+    "s_86ff6f6ede1999": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed429-0321-7931-af2f-1d361c0fa7dd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "yhliang <lyhxxx@yeah.net>"
+    }
+  }
+}
