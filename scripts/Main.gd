@@ -5,55 +5,77 @@ const BulletScript := preload("res://scripts/Bullet.gd")
 const StarfieldScript := preload("res://scripts/Starfield.gd")
 const IslandScript := preload("res://scripts/Island.gd")
 const TurretScript := preload("res://scripts/Turret.gd")
-const RouteBeaconScript := preload("res://scripts/RouteBeacon.gd")
+const EnemyScript := preload("res://scripts/Enemy.gd")
 const SeaMineScript := preload("res://scripts/SeaMine.gd")
 
 const ARENA_SIZE := Vector2(1280, 720)
-const WORLD_SIZE := Vector2(1280, 3600)
-const MAP_BOUNDS := Rect2(Vector2(50, 70), Vector2(1180, 3460))
-const START_POSITION := Vector2(640, 3460)
-const EXIT_RECT := Rect2(Vector2(500, 35), Vector2(280, 95))
+const ROOM_BOUNDS := Rect2(Vector2(74, 82), Vector2(1132, 556))
+const START_POSITION := Vector2(640, 540)
 const UPGRADE_POOL := [
-	{"id": "damage", "name": "星轨主炮", "desc": "武器伤害 +25%"},
-	{"id": "rate", "name": "辉光装填", "desc": "开火速度 +18%"},
-	{"id": "range", "name": "星象透镜", "desc": "武器射程 +20%"},
-	{"id": "multishot", "name": "棱光侧舷", "desc": "投射物 +1"},
-	{"id": "pierce", "name": "彗星穿透", "desc": "穿透 +1"},
-	{"id": "speed", "name": "风帆机动", "desc": "航速与转向 +12%"},
-	{"id": "heal", "name": "潮汐护核", "desc": "回复 35，生命上限 +10"},
-	{"id": "shield", "name": "镜光屏障", "desc": "获得可再生护盾"},
-	{"id": "aura", "name": "回旋星刃", "desc": "船周围周期伤害"},
-	{"id": "slow_bullets", "name": "干扰旗语", "desc": "炮台弹速 -15%"},
-	{"id": "lock_jammer", "name": "迷雾干扰", "desc": "炮台锁定变慢"},
-	{"id": "broadside", "name": "月弧侧舷", "desc": "侧舷伤害 +45%，射程 +15%"},
-	{"id": "mine", "name": "星潮尾雷", "desc": "航行时自动布置尾雷"},
-	{"id": "mine_core", "name": "深海雷核", "desc": "尾雷伤害与爆炸范围提升"},
-	{"id": "vanguard", "name": "破浪船首", "desc": "船首射界更强，主炮伤害 +18%"}
+	{"id": "damage", "name": "星轨主炮", "desc": "主炮伤害 +25%", "family": "炮击"},
+	{"id": "rate", "name": "辉光装填", "desc": "开火速度 +18%", "family": "炮击"},
+	{"id": "range", "name": "星象透镜", "desc": "武器射程 +20%", "family": "炮击"},
+	{"id": "multishot", "name": "棱光齐射", "desc": "投射物 +1", "family": "炮击"},
+	{"id": "pierce", "name": "彗星穿透", "desc": "穿透 +1", "family": "炮击"},
+	{"id": "speed", "name": "风帆机动", "desc": "航速与转向 +12%", "family": "机动"},
+	{"id": "heal", "name": "潮汐护核", "desc": "生命上限 +10，回复 35", "family": "防御"},
+	{"id": "shield", "name": "镜光屏障", "desc": "可再生护盾 +1", "family": "防御"},
+	{"id": "aura", "name": "回旋星刃", "desc": "获得近身周期伤害", "family": "防御"},
+	{"id": "broadside", "name": "月弧侧舷", "desc": "侧舷伤害 +45%", "family": "炮击"},
+	{"id": "mine", "name": "星潮尾雷", "desc": "解锁自动尾雷", "family": "机动"},
+	{"id": "mine_core", "name": "深海雷核", "desc": "尾雷范围和伤害提升", "family": "机动"}
 ]
 
+const ROOM_GRAPH := {
+	0: {"type": "start", "name": "漂流起点", "doors": [{"side": "north", "target": 1, "label": "战斗海域"}]},
+	1: {"type": "combat", "name": "碎星浅湾", "doors": [
+		{"side": "west", "target": 2, "label": "宝藏舱", "key": 1},
+		{"side": "east", "target": 3, "label": "战斗海域"}
+	]},
+	2: {"type": "treasure", "name": "沉星宝藏舱", "doors": [{"side": "north", "target": 4, "label": "精英海域"}]},
+	3: {"type": "combat", "name": "巡猎航道", "doors": [
+		{"side": "north", "target": 4, "label": "精英海域"},
+		{"side": "west", "target": 8, "label": "可疑礁壁", "bomb": 1}
+	]},
+	4: {"type": "elite", "name": "赤潮伏击区", "doors": [
+		{"side": "west", "target": 5, "label": "漂流商店"},
+		{"side": "east", "target": 6, "label": "神秘事件"}
+	]},
+	5: {"type": "shop", "name": "漂流商店", "doors": [{"side": "north", "target": 7, "label": "首领海域"}]},
+	6: {"type": "event", "name": "星潮祭坛", "doors": [{"side": "north", "target": 7, "label": "首领海域"}]},
+	7: {"type": "boss", "name": "深海王庭", "doors": []},
+	8: {"type": "secret", "name": "隐秘星湾", "doors": [{"side": "north", "target": 4, "label": "精英海域"}]}
+}
+
 var player: Node2D
+var enemies: Array = []
 var turrets: Array = []
 var bullets: Array = []
 var islands: Array = []
-var route_beacons: Array = []
 var mines: Array = []
-var level := 1
+var available_doors: Array = []
+var door_labels: Array = []
+
+var floor_index := 1
+var current_room_id := 0
+var rooms_cleared := 0
 var state := "combat"
+var room_cleared := false
+var reward_claimed := false
+var coins := 0
+var keys := 1
+var bombs := 1
 var selected_upgrade_ids: Array[String] = []
 var upgrade_family_counts := {"炮击": 0, "防御": 0, "机动": 0}
-var turret_bullet_speed_factor := 1.0
-var turret_lock_factor := 1.0
 var aura_timer := 0.0
-var chosen_route_groups: Dictionary = {}
-var elite_alive := false
-var current_route_name := "未选择"
+var notice_timer := 0.0
 
 var ui_layer: CanvasLayer
 var hud_label: Label
+var map_label: Label
 var notice_label: Label
-var notice_timer := 0.0
 var center_panel: PanelContainer
-var upgrade_row: HBoxContainer
+var choice_row: HBoxContainer
 
 func _ready() -> void:
 	randomize()
@@ -62,210 +84,193 @@ func _ready() -> void:
 	_start_run()
 
 func _process(delta: float) -> void:
-	if state != "combat":
-		return
-	_handle_player_auto_fire()
-	_handle_player_side_fire()
-	_handle_player_mines()
-	_handle_player_aura(delta)
-	_tick_turrets(delta)
-	_check_collisions()
-	_check_route_beacons()
-	_check_exit()
-	_cleanup_bullets()
+	if state == "combat":
+		_handle_player_auto_fire()
+		_handle_player_side_fire()
+		_handle_player_mines()
+		_handle_player_aura(delta)
+		_tick_hostiles(delta)
+		_check_collisions()
+		_check_room_clear()
+		_check_doors()
+		_cleanup_objects()
 	_update_notice(delta)
 	_update_hud()
+	queue_redraw()
 
 func _build_world() -> void:
 	var ocean := StarfieldScript.new()
-	ocean.setup(WORLD_SIZE)
+	ocean.setup(ARENA_SIZE)
+	ocean.z_index = -10
 	add_child(ocean)
 	player = PlayerShipScript.new()
 	player.position = START_POSITION
-	player.navigation_bounds = MAP_BOUNDS
+	player.navigation_bounds = ROOM_BOUNDS
 	player.died.connect(_on_player_died)
 	add_child(player)
-	var camera := Camera2D.new()
-	camera.position_smoothing_enabled = true
-	camera.position_smoothing_speed = 6.0
-	camera.limit_left = 0
-	camera.limit_right = int(WORLD_SIZE.x)
-	camera.limit_top = 0
-	camera.limit_bottom = int(WORLD_SIZE.y)
-	player.add_child(camera)
-	queue_redraw()
 
 func _build_ui() -> void:
 	ui_layer = CanvasLayer.new()
 	add_child(ui_layer)
-
 	hud_label = Label.new()
 	hud_label.position = Vector2(24, 18)
-	hud_label.add_theme_font_size_override("font_size", 17)
-	hud_label.add_theme_color_override("font_color", Color(0.9, 0.96, 1.0))
+	hud_label.add_theme_font_size_override("font_size", 18)
+	hud_label.add_theme_color_override("font_color", Color(0.92, 0.97, 1.0))
 	ui_layer.add_child(hud_label)
-
+	map_label = Label.new()
+	map_label.position = Vector2(760, 18)
+	map_label.size = Vector2(490, 80)
+	map_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	map_label.add_theme_font_size_override("font_size", 15)
+	map_label.add_theme_color_override("font_color", Color(0.72, 0.9, 1.0))
+	ui_layer.add_child(map_label)
 	notice_label = Label.new()
-	notice_label.position = Vector2(340, 58)
-	notice_label.custom_minimum_size = Vector2(600, 50)
+	notice_label.position = Vector2(300, 62)
+	notice_label.size = Vector2(680, 48)
 	notice_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	notice_label.add_theme_font_size_override("font_size", 22)
-	notice_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.55))
+	notice_label.add_theme_constant_override("outline_size", 5)
+	notice_label.add_theme_color_override("font_outline_color", Color(0.02, 0.08, 0.12, 0.9))
 	ui_layer.add_child(notice_label)
-
 	center_panel = PanelContainer.new()
 	center_panel.visible = false
 	center_panel.set_anchors_preset(Control.PRESET_CENTER)
-	center_panel.offset_left = -420
-	center_panel.offset_top = -150
-	center_panel.offset_right = 420
-	center_panel.offset_bottom = 150
+	center_panel.offset_left = -430
+	center_panel.offset_top = -155
+	center_panel.offset_right = 430
+	center_panel.offset_bottom = 155
 	ui_layer.add_child(center_panel)
-
 	var margin := MarginContainer.new()
-	margin.name = "MarginContainer"
-	margin.add_theme_constant_override("margin_left", 22)
-	margin.add_theme_constant_override("margin_top", 18)
-	margin.add_theme_constant_override("margin_right", 22)
-	margin.add_theme_constant_override("margin_bottom", 18)
+	margin.name = "Margin"
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_top", 20)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_bottom", 20)
 	center_panel.add_child(margin)
-
 	var stack := VBoxContainer.new()
-	stack.name = "VBoxContainer"
+	stack.name = "Stack"
 	stack.add_theme_constant_override("separation", 16)
 	margin.add_child(stack)
-
 	var title := Label.new()
 	title.name = "Title"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_font_size_override("font_size", 27)
 	stack.add_child(title)
-
-	upgrade_row = HBoxContainer.new()
-	upgrade_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	upgrade_row.add_theme_constant_override("separation", 12)
-	stack.add_child(upgrade_row)
+	choice_row = HBoxContainer.new()
+	choice_row.name = "Choices"
+	choice_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	choice_row.add_theme_constant_override("separation", 12)
+	stack.add_child(choice_row)
 
 func _start_run() -> void:
-	level = 1
-	player.health = player.max_health
+	floor_index = 1
+	coins = 0
+	keys = 1
+	bombs = 1
 	selected_upgrade_ids.clear()
 	upgrade_family_counts = {"炮击": 0, "防御": 0, "机动": 0}
-	_start_level()
+	player.health = player.max_health
+	_enter_room(0)
 
-func _start_level() -> void:
+func _enter_room(room_id: int) -> void:
+	_clear_room_objects()
+	current_room_id = room_id
 	state = "combat"
-	player.movement_enabled = true
+	room_cleared = false
+	reward_claimed = false
 	center_panel.visible = false
-	for turret in turrets:
-		if is_instance_valid(turret):
-			turret.queue_free()
-	turrets.clear()
-	for bullet in bullets:
-		if is_instance_valid(bullet):
-			bullet.queue_free()
-	bullets.clear()
-	for island in islands:
-		if is_instance_valid(island):
-			island.queue_free()
-	islands.clear()
-	for beacon in route_beacons:
-		if is_instance_valid(beacon):
-			beacon.queue_free()
-	route_beacons.clear()
-	for mine in mines:
-		if is_instance_valid(mine):
-			mine.queue_free()
-	mines.clear()
-	chosen_route_groups.clear()
-	elite_alive = false
-	current_route_name = "未选择"
+	player.movement_enabled = true
 	player.position = START_POSITION
 	player.reset_navigation_state()
-	_build_seaway_level()
-	_update_hud()
+	var room: Dictionary = ROOM_GRAPH[current_room_id]
+	_show_notice("进入：%s" % room["name"])
+	_build_room_geometry(room["type"])
+	_spawn_room_content(room["type"])
+	if room["type"] in ["start", "treasure", "shop", "event", "secret"]:
+		room_cleared = true
+		_open_room_reward(room["type"])
+	else:
+		available_doors.clear()
 
-func _build_seaway_level() -> void:
-	# Edge archipelagos keep the player inside a readable seaway without making a straight corridor.
-	for y in range(260, 3460, 310):
-		var wave := sin(float(y) * 0.0047) * 58.0
-		_spawn_island(Vector2(8 + wave, y), 150.0, false)
-		_spawn_island(Vector2(1272 + wave, y + 120), 155.0, false)
+func _clear_room_objects() -> void:
+	for collection in [enemies, turrets, bullets, islands, mines]:
+		for item in collection:
+			if is_instance_valid(item):
+				item.queue_free()
+		collection.clear()
+	for label in door_labels:
+		if is_instance_valid(label):
+			label.queue_free()
+	door_labels.clear()
+	available_doors.clear()
 
-	var mirror := -1.0 if level % 2 == 0 else 1.0
-	var layout := [
-		# First fork: short defended left channel or longer open right channel.
-		{"pos": Vector2(640, 3060), "r": 190.0, "turret": true, "type": "spread"},
-		{"pos": Vector2(355, 2850), "r": 112.0, "turret": true, "type": "aimed"},
-		{"pos": Vector2(885, 2730), "r": 145.0, "turret": false},
-		# Bent middle section with three navigable gaps.
-		{"pos": Vector2(600, 2390), "r": 155.0, "turret": true, "type": "sniper"},
-		{"pos": Vector2(930, 2240), "r": 135.0, "turret": true, "type": "spread"},
-		{"pos": Vector2(300, 2100), "r": 125.0, "turret": false},
-		{"pos": Vector2(650, 1880), "r": 205.0, "turret": true, "type": "aimed"},
-		# Second fork: outer routes curve around a central fortress island.
-		{"pos": Vector2(380, 1540), "r": 130.0, "turret": true, "type": "spread"},
-		{"pos": Vector2(735, 1450), "r": 175.0, "turret": true, "type": "sniper"},
-		{"pos": Vector2(1015, 1270), "r": 105.0, "turret": false},
-		{"pos": Vector2(520, 1050), "r": 145.0, "turret": true, "type": "aimed"},
-		# Final S bend before the exit.
-		{"pos": Vector2(850, 790), "r": 160.0, "turret": true, "type": "spread"},
-		{"pos": Vector2(390, 610), "r": 135.0, "turret": false},
-		{"pos": Vector2(650, 350), "r": 120.0, "turret": true, "type": "sniper", "elite": true}
-	]
-	for item in layout:
-		var pos: Vector2 = item["pos"]
-		pos.x = 640.0 + (pos.x - 640.0) * mirror
-		_spawn_island(pos, item["r"], item["turret"], item.get("type", "aimed"), item.get("elite", false))
-	if level > 2:
-		var extra_count := mini(level - 2, 4)
-		for i in range(extra_count):
-			var extra_y := 2750.0 - i * 570.0
-			var extra_x := 210.0 if (i + level) % 2 == 0 else 1070.0
-			_spawn_island(Vector2(extra_x, extra_y), 82.0, true, "aimed")
-	_spawn_route_beacon(Vector2(205, 2670), 1, "risk")
-	_spawn_route_beacon(Vector2(1070, 2600), 1, "safe")
-	_spawn_route_beacon(Vector2(620, 1250), 2, "rare")
-	_spawn_route_beacon(Vector2(205, 1220), 2, "safe")
+func _build_room_geometry(room_type: String) -> void:
+	var layouts := {
+		"combat": [Vector2(350, 260), Vector2(930, 440)],
+		"elite": [Vector2(270, 220), Vector2(1010, 220), Vector2(640, 470)],
+		"boss": [Vector2(270, 360), Vector2(1010, 360)],
+		"treasure": [Vector2(300, 250), Vector2(980, 250)],
+		"shop": [Vector2(240, 520), Vector2(1040, 520)],
+		"event": [Vector2(360, 420), Vector2(920, 420)],
+		"secret": [Vector2(320, 260), Vector2(960, 460)]
+	}
+	for pos in layouts.get(room_type, []):
+		var island := IslandScript.new()
+		island.setup(pos, 62.0 if room_type != "boss" else 82.0)
+		islands.append(island)
+		add_child(island)
 
-func _spawn_island(pos: Vector2, radius: float, has_turret: bool = true, attack_type: String = "aimed", elite: bool = false) -> void:
-	var island := IslandScript.new()
-	island.setup(pos, radius)
-	islands.append(island)
-	add_child(island)
-	if not has_turret:
-		return
+func _spawn_room_content(room_type: String) -> void:
+	match room_type:
+		"combat":
+			_spawn_enemy(Vector2(330, 190), "boat")
+			_spawn_enemy(Vector2(950, 190), "monster")
+			if current_room_id == 3 or floor_index > 1:
+				_spawn_enemy(Vector2(640, 250), "skirmisher")
+			_spawn_turret(Vector2(640, 150), "aimed")
+		"elite":
+			_spawn_enemy(Vector2(420, 190), "monster")
+			_spawn_enemy(Vector2(860, 190), "skirmisher")
+			_spawn_turret(Vector2(640, 220), "spread", true)
+		"boss":
+			_spawn_enemy(Vector2(640, 220), "monster", true)
+			_spawn_enemy(Vector2(390, 190), "boat")
+			_spawn_enemy(Vector2(890, 190), "boat")
+
+func _spawn_enemy(pos: Vector2, enemy_type: String, boss: bool = false) -> void:
+	var enemy := EnemyScript.new()
+	enemy.setup(floor_index, pos, enemy_type, boss)
+	enemy.room_bounds = ROOM_BOUNDS
+	enemy.killed.connect(_on_enemy_killed)
+	enemies.append(enemy)
+	add_child(enemy)
+
+func _spawn_turret(pos: Vector2, attack_type: String, elite: bool = false) -> void:
 	var turret := TurretScript.new()
-	var turret_offset := Vector2(0, -radius * 0.3)
-	turret.setup(pos + turret_offset, level, attack_type, elite)
-	turret.lock_time *= turret_lock_factor
+	turret.setup(pos, floor_index, attack_type, elite)
 	turret.destroyed.connect(_on_turret_destroyed)
 	turrets.append(turret)
 	add_child(turret)
-	if elite:
-		elite_alive = true
 
-func _spawn_route_beacon(pos: Vector2, group_id: int, route_type: String) -> void:
-	var beacon := RouteBeaconScript.new()
-	beacon.setup(pos, group_id, route_type)
-	route_beacons.append(beacon)
-	add_child(beacon)
+func _all_targets() -> Array:
+	var targets: Array = []
+	for target in enemies + turrets:
+		if is_instance_valid(target):
+			targets.append(target)
+	return targets
 
 func _handle_player_auto_fire() -> void:
 	if not player.can_fire():
 		return
-	var target := _find_turret_in_arc(player.forward_vector(), player.weapon_range, 0.05)
+	var target := _find_target_in_arc(player.forward_vector(), player.weapon_range, 0.05)
 	if target == null:
 		return
-	var base_direction := (target.position - player.position).normalized()
+	var base_direction: Vector2 = (target.position - player.position).normalized()
 	var spread_step := deg_to_rad(9.0)
 	var start_offset := -spread_step * float(player.bullet_count - 1) * 0.5
 	for i in range(player.bullet_count):
 		var direction := base_direction.rotated(start_offset + spread_step * i)
-		var bullet := BulletScript.new()
-		bullet.setup(player.position + direction * 40.0, direction * player.bullet_speed, player.weapon_damage, 0, 6.0, player.pierce)
-		bullets.append(bullet)
-		add_child(bullet)
+		_spawn_player_bullet(player.position + direction * 40.0, direction, player.weapon_damage, 6.0, player.pierce)
 	player.mark_fired()
 
 func _handle_player_side_fire() -> void:
@@ -276,30 +281,31 @@ func _handle_player_side_fire() -> void:
 	var fired := false
 	for side in [-1.0, 1.0]:
 		var side_direction: Vector2 = right * side
-		var target := _find_turret_in_arc(side_direction, player.side_range, 0.45)
+		var target := _find_target_in_arc(side_direction, player.side_range, 0.45)
 		if target == null:
 			continue
 		var direction: Vector2 = (target.position - player.position).normalized()
 		for raw_offset in [-0.08, 0.08]:
 			var offset: float = raw_offset
-			var bullet := BulletScript.new()
-			var muzzle: Vector2 = player.position + side_direction * 31.0 + forward * offset * 80.0
-			bullet.setup(muzzle, direction.rotated(offset) * player.bullet_speed * 0.82, player.side_damage, 0, 5.0, 0)
-			bullets.append(bullet)
-			add_child(bullet)
+			_spawn_player_bullet(player.position + side_direction * 31.0, direction.rotated(offset), player.side_damage, 5.0, 0)
 		fired = true
 	if fired:
 		player.mark_side_fired()
 
+func _spawn_player_bullet(pos: Vector2, direction: Vector2, damage: float, radius: float, pierce: int) -> void:
+	var bullet := BulletScript.new()
+	bullet.setup(pos, direction * player.bullet_speed, damage, 0, radius, pierce)
+	bullets.append(bullet)
+	add_child(bullet)
+
 func _handle_player_mines() -> void:
 	if not player.can_drop_mine():
 		return
-	var rear_direction: Vector2 = -player.forward_vector()
-	var target := _find_turret_in_arc(rear_direction, 185.0, 0.15)
-	if target == null:
+	var rear: Vector2 = -player.forward_vector()
+	if _find_target_in_arc(rear, 185.0, 0.15) == null:
 		return
 	var mine := SeaMineScript.new()
-	mine.setup(player.position + rear_direction * 52.0, player.mine_damage, player.mine_radius)
+	mine.setup(player.position + rear * 52.0, player.mine_damage, player.mine_radius)
 	mines.append(mine)
 	add_child(mine)
 	player.mark_mine_dropped()
@@ -311,40 +317,32 @@ func _handle_player_aura(delta: float) -> void:
 	if aura_timer > 0.0:
 		return
 	aura_timer = 0.72
-	for turret in turrets:
-		if is_instance_valid(turret) and player.position.distance_to(turret.position) <= player.aura_radius + turret.radius:
-			turret.take_damage(player.aura_damage)
+	for target in _all_targets():
+		if player.position.distance_to(target.position) <= player.aura_radius + target.radius:
+			target.take_damage(player.aura_damage)
 
-func _find_nearest_turret(max_range: float) -> Node2D:
+func _find_target_in_arc(direction: Vector2, max_range: float, min_dot: float) -> Node2D:
 	var best: Node2D = null
 	var best_distance := max_range
-	for turret in turrets:
-		if not is_instance_valid(turret):
-			continue
-		var distance := player.position.distance_to(turret.position)
-		if distance <= best_distance:
-			best = turret
+	for target in _all_targets():
+		var offset: Vector2 = target.position - player.position
+		var distance := offset.length()
+		if distance <= best_distance and distance > 0.01 and direction.dot(offset / distance) >= min_dot:
+			best = target
 			best_distance = distance
 	return best
 
-func _find_turret_in_arc(direction: Vector2, max_range: float, min_dot: float) -> Node2D:
-	var best: Node2D = null
-	var best_distance := max_range
+func _tick_hostiles(delta: float) -> void:
+	for enemy in enemies:
+		if not is_instance_valid(enemy):
+			continue
+		for bullet in enemy.tick(delta, player):
+			bullets.append(bullet)
+			add_child(bullet)
 	for turret in turrets:
 		if not is_instance_valid(turret):
 			continue
-		var to_turret: Vector2 = turret.position - player.position
-		var distance := to_turret.length()
-		if distance <= best_distance and distance > 0.01 and direction.dot(to_turret / distance) >= min_dot:
-			best = turret
-			best_distance = distance
-	return best
-
-func _tick_turrets(delta: float) -> void:
-	for turret in turrets:
-		if not is_instance_valid(turret):
-			continue
-		for bullet in turret.tick(delta, player, turret_bullet_speed_factor):
+		for bullet in turret.tick(delta, player):
 			bullets.append(bullet)
 			add_child(bullet)
 
@@ -353,119 +351,253 @@ func _check_collisions() -> void:
 		if not is_instance_valid(bullet):
 			continue
 		if bullet.bullet_owner == 0:
-			for turret in turrets:
-				if not is_instance_valid(turret):
-					continue
-				if bullet.position.distance_to(turret.position) <= bullet.radius + turret.radius:
-					turret.take_damage(bullet.damage)
+			for target in _all_targets():
+				if bullet.position.distance_to(target.position) <= bullet.radius + target.radius:
+					target.take_damage(bullet.damage)
 					if bullet.consume_hit():
 						bullet.queue_free()
 					break
-		else:
-			if bullet.position.distance_to(player.position) <= bullet.radius + player.radius:
-				player.take_damage(bullet.damage)
-				bullet.queue_free()
+		elif bullet.position.distance_to(player.position) <= bullet.radius + player.radius:
+			player.take_damage(bullet.damage)
+			bullet.queue_free()
+	for enemy in enemies:
+		if is_instance_valid(enemy) and enemy.position.distance_to(player.position) <= enemy.radius + player.radius:
+			player.take_damage(enemy.contact_damage)
 	for island in islands:
 		if not is_instance_valid(island):
 			continue
 		var offset: Vector2 = player.position - island.position
 		var min_distance: float = player.radius + island.radius
-		var distance: float = offset.length()
-		if distance < min_distance and distance > 0.01:
+		if offset.length() < min_distance and offset.length() > 0.01:
 			player.position = island.position + offset.normalized() * min_distance
-			player.position.x = clamp(player.position.x, MAP_BOUNDS.position.x, MAP_BOUNDS.end.x)
-			player.position.y = clamp(player.position.y, MAP_BOUNDS.position.y, MAP_BOUNDS.end.y)
 	for mine in mines:
 		if not is_instance_valid(mine):
 			continue
-		var triggered := false
-		for turret in turrets:
-			if not is_instance_valid(turret):
-				continue
-			if mine.position.distance_to(turret.position) <= mine.trigger_radius + turret.radius:
-				triggered = true
-				for blast_target in turrets:
-					if is_instance_valid(blast_target) and mine.position.distance_to(blast_target.position) <= mine.blast_radius + blast_target.radius:
+		for target in _all_targets():
+			if mine.position.distance_to(target.position) <= mine.trigger_radius + target.radius:
+				for blast_target in _all_targets():
+					if mine.position.distance_to(blast_target.position) <= mine.blast_radius + blast_target.radius:
 						blast_target.take_damage(mine.damage)
+				mine.queue_free()
 				break
-		if triggered:
-			mine.queue_free()
-	player.position.x = clamp(player.position.x, MAP_BOUNDS.position.x, MAP_BOUNDS.end.x)
-	player.position.y = clamp(player.position.y, MAP_BOUNDS.position.y, MAP_BOUNDS.end.y)
+	player.position.x = clamp(player.position.x, ROOM_BOUNDS.position.x, ROOM_BOUNDS.end.x)
+	player.position.y = clamp(player.position.y, ROOM_BOUNDS.position.y, ROOM_BOUNDS.end.y)
 
-func _check_route_beacons() -> void:
-	for beacon in route_beacons:
-		if not is_instance_valid(beacon) or not beacon.active:
-			continue
-		if chosen_route_groups.has(beacon.group_id):
-			beacon.deactivate()
-			continue
-		if player.position.distance_to(beacon.position) > beacon.radius:
-			continue
-		chosen_route_groups[beacon.group_id] = beacon.route_type
-		current_route_name = beacon.route_name
-		_apply_route_reward(beacon.route_type)
-		for sibling in route_beacons:
-			if is_instance_valid(sibling) and sibling.group_id == beacon.group_id:
-				sibling.deactivate()
+func _check_room_clear() -> void:
+	enemies = enemies.filter(func(item) -> bool:
+		return is_instance_valid(item) and not item.is_queued_for_deletion()
+	)
+	turrets = turrets.filter(func(item) -> bool:
+		return is_instance_valid(item) and not item.is_queued_for_deletion()
+	)
+	if room_cleared or not enemies.is_empty() or not turrets.is_empty():
+		return
+	room_cleared = true
+	rooms_cleared += 1
+	var room_type: String = ROOM_GRAPH[current_room_id]["type"]
+	if room_type == "boss":
+		_show_boss_reward()
+		return
+	coins += 2 + floor_index
+	if rooms_cleared % 3 == 0:
+		bombs += 1
+		_show_notice("房间清理：获得星币和星爆弹")
+	elif rooms_cleared % 2 == 0:
+		keys += 1
+		_show_notice("房间清理：获得星币和钥匙")
+	else:
+		_show_notice("房间清理：获得 %d 星币" % (2 + floor_index))
+	_build_available_doors()
 
-func _apply_route_reward(route_type: String) -> void:
-	match route_type:
-		"risk":
-			player.weapon_damage *= 1.12
-			player.side_damage *= 1.12
-			_show_notice("赤潮捷径：本次远航主炮与侧舷伤害 +12%")
-		"rare":
-			player.bullet_count = mini(player.bullet_count + 1, 5)
-			player.max_shield_charges = mini(player.max_shield_charges + 1, 3)
-			player.shield_charges = player.max_shield_charges
-			_show_notice("辉金秘航：投射物 +1，并补满护盾")
+func _build_available_doors() -> void:
+	for label in door_labels:
+		if is_instance_valid(label):
+			label.queue_free()
+	door_labels.clear()
+	available_doors.clear()
+	for door_data in ROOM_GRAPH[current_room_id]["doors"]:
+		var door: Dictionary = door_data.duplicate()
+		door["rect"] = _door_rect(door["side"])
+		available_doors.append(door)
+		_add_door_label(door)
+
+func _add_door_label(door: Dictionary) -> void:
+	var label := Label.new()
+	var rect: Rect2 = door["rect"]
+	label.size = Vector2(220, 28)
+	match door["side"]:
+		"north":
+			label.position = Vector2(rect.get_center().x - 110, rect.end.y + 8)
+		"south":
+			label.position = Vector2(rect.get_center().x - 110, rect.position.y - 34)
+		"west":
+			label.position = Vector2(rect.end.x + 8, rect.get_center().y - 14)
 		_:
-			player.heal(24.0)
-			player.forward_speed *= 1.04
-			player.turn_speed *= 1.04
-			_show_notice("澄蓝稳流：修复 24 船体，本次远航机动 +4%")
+			label.position = Vector2(rect.position.x - 228, rect.get_center().y - 14)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.text = door["label"]
+	if int(door.get("key", 0)) > 0:
+		label.text += "  [钥匙]"
+	if int(door.get("bomb", 0)) > 0:
+		label.text += "  [星爆弹]"
+	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_constant_override("outline_size", 4)
+	label.add_theme_color_override("font_outline_color", Color(0.02, 0.08, 0.12, 0.95))
+	door_labels.append(label)
+	add_child(label)
 
-func _check_exit() -> void:
-	if EXIT_RECT.has_point(player.position):
-		if elite_alive:
-			_show_notice("出口被星潮堡垒封锁，先摧毁精英炮台")
+func _door_rect(side: String) -> Rect2:
+	match side:
+		"west":
+			return Rect2(Vector2(45, 300), Vector2(78, 120))
+		"east":
+			return Rect2(Vector2(1157, 300), Vector2(78, 120))
+		"south":
+			return Rect2(Vector2(580, 610), Vector2(120, 78))
+		_:
+			return Rect2(Vector2(580, 32), Vector2(120, 92))
+
+func _check_doors() -> void:
+	if not room_cleared or state != "combat":
+		return
+	for door in available_doors:
+		if not door["rect"].has_point(player.position):
+			continue
+		var key_cost: int = door.get("key", 0)
+		var bomb_cost: int = door.get("bomb", 0)
+		if keys < key_cost:
+			_show_notice("需要 %d 把钥匙" % key_cost)
 			return
-		_show_upgrade_choices()
+		if bombs < bomb_cost:
+			_show_notice("需要 %d 枚星爆弹" % bomb_cost)
+			return
+		keys -= key_cost
+		bombs -= bomb_cost
+		_enter_room(door["target"])
+		return
 
-func _cleanup_bullets() -> void:
-	bullets = bullets.filter(func(bullet) -> bool:
-		return is_instance_valid(bullet) and bullet.is_inside_tree()
-	)
-	mines = mines.filter(func(mine) -> bool:
-		return is_instance_valid(mine) and mine.is_inside_tree()
-	)
+func _open_room_reward(room_type: String) -> void:
+	match room_type:
+		"start":
+			_build_available_doors()
+		"treasure":
+			_show_single_relic()
+		"shop":
+			_show_shop()
+		"event":
+			_show_event()
+		"secret":
+			_show_secret_room()
 
-func _on_turret_destroyed(turret) -> void:
-	if turret.is_elite:
-		elite_alive = false
-		_show_notice("星潮堡垒已解除，海道出口开放")
-	turrets.erase(turret)
-	_update_hud()
+func _show_secret_room() -> void:
+	_show_choice_panel("隐秘星湾", [{
+		"label": "拾取秘密补给\n星币 +8 / 钥匙 +1 / 修复 20",
+		"action": Callable(self, "_claim_secret_reward")
+	}])
 
-func _show_upgrade_choices() -> void:
-	state = "upgrade"
+func _claim_secret_reward() -> void:
+	coins += 8
+	keys += 1
+	player.heal(20.0)
+	_close_reward_and_open_doors("发现了隐秘星湾的储藏")
+
+func _show_single_relic() -> void:
+	var relic: Dictionary = UPGRADE_POOL.pick_random()
+	_show_choice_panel("宝藏房：发现遗物", [{
+		"label": "%s\n%s" % [relic["name"], relic["desc"]],
+		"action": Callable(self, "_claim_relic").bind(relic["id"], relic["name"])
+	}])
+
+func _claim_relic(upgrade_id: String, relic_name: String) -> void:
+	_apply_upgrade(upgrade_id)
+	reward_claimed = true
+	_close_reward_and_open_doors("获得遗物：%s" % relic_name)
+
+func _show_shop() -> void:
+	var pool := UPGRADE_POOL.duplicate()
+	pool.shuffle()
+	var options: Array = []
+	for i in range(3):
+		var item: Dictionary = pool[i]
+		var price := 5 + i * 2
+		options.append({
+			"label": "%s\n%s\n%d 星币" % [item["name"], item["desc"], price],
+			"action": Callable(self, "_buy_shop_item").bind(item["id"], item["name"], price)
+		})
+	options.append({
+		"label": "离开商店\n保留星币",
+		"action": Callable(self, "_close_reward_and_open_doors").bind("离开漂流商店")
+	})
+	_show_choice_panel("漂流商店", options)
+
+func _buy_shop_item(upgrade_id: String, item_name: String, price: int) -> void:
+	if coins < price:
+		_show_notice("星币不足")
+		return
+	coins -= price
+	_apply_upgrade(upgrade_id)
+	reward_claimed = true
+	_close_reward_and_open_doors("购买：%s" % item_name)
+
+func _show_event() -> void:
+	_show_choice_panel("星潮祭坛", [
+		{
+			"label": "献出 25 船体\n随机强化两次",
+			"action": Callable(self, "_event_sacrifice")
+		},
+		{
+			"label": "平静祈愿\n回复 30 船体",
+			"action": Callable(self, "_event_heal")
+		}
+	])
+
+func _event_sacrifice() -> void:
+	player.health = maxf(1.0, player.health - 25.0)
+	for i in range(2):
+		_apply_upgrade(UPGRADE_POOL.pick_random()["id"])
+	_close_reward_and_open_doors("祭坛回应了你的冒险")
+
+func _event_heal() -> void:
+	player.heal(30.0)
+	_close_reward_and_open_doors("潮声抚平了船体裂痕")
+
+func _show_boss_reward() -> void:
+	var choices := _roll_upgrade_choices()
+	var options: Array = []
+	for choice in choices:
+		options.append({
+			"label": "%s\n%s" % [choice["name"], choice["desc"]],
+			"action": Callable(self, "_claim_boss_reward").bind(choice["id"])
+		})
+	_show_choice_panel("第 %d 层首领击破 - 选择遗物" % floor_index, options)
+
+func _claim_boss_reward(upgrade_id: String) -> void:
+	_apply_upgrade(upgrade_id)
+	floor_index += 1
+	player.heal(30.0)
+	_enter_room(0)
+
+func _show_choice_panel(title_text: String, options: Array) -> void:
+	state = "reward"
 	player.movement_enabled = false
 	center_panel.visible = true
-	var title := center_panel.get_node("MarginContainer/VBoxContainer/Title") as Label
-	title.text = "第 %d 段海道通过 - 选择一项强化" % level
-	for child in upgrade_row.get_children():
+	center_panel.get_node("Margin/Stack/Title").text = title_text
+	for child in choice_row.get_children():
 		child.queue_free()
-	var choices := _roll_upgrade_choices()
-	for choice in choices:
+	for option in options:
 		var button := Button.new()
-		button.custom_minimum_size = Vector2(245, 116)
-		button.text = "%s\n%s" % [choice["name"], choice["desc"]]
-		button.add_theme_font_size_override("font_size", 17)
-		button.pressed.connect(func() -> void:
-			_apply_upgrade(choice["id"])
-		)
-		upgrade_row.add_child(button)
+		button.custom_minimum_size = Vector2(190, 112)
+		button.text = option["label"]
+		button.add_theme_font_size_override("font_size", 16)
+		button.pressed.connect(option["action"])
+		choice_row.add_child(button)
+
+func _close_reward_and_open_doors(message: String) -> void:
+	state = "combat"
+	player.movement_enabled = true
+	center_panel.visible = false
+	_build_available_doors()
+	_show_notice(message)
 
 func _roll_upgrade_choices() -> Array:
 	var pool := UPGRADE_POOL.duplicate()
@@ -494,12 +626,8 @@ func _apply_upgrade(upgrade_id: String) -> void:
 			player.max_shield_charges = mini(player.max_shield_charges + 1, 3)
 			player.shield_charges = player.max_shield_charges
 		"aura":
-			player.aura_damage += 8.0 + level * 1.5
+			player.aura_damage += 9.0 + floor_index
 			player.aura_radius += 10.0
-		"slow_bullets":
-			turret_bullet_speed_factor = maxf(0.55, turret_bullet_speed_factor * 0.85)
-		"lock_jammer":
-			turret_lock_factor *= 1.25
 		"broadside":
 			player.side_damage *= 1.45
 			player.side_range *= 1.15
@@ -507,57 +635,50 @@ func _apply_upgrade(upgrade_id: String) -> void:
 			player.mine_damage = maxf(player.mine_damage, 36.0)
 		"mine_core":
 			player.mine_damage = maxf(36.0, player.mine_damage * 1.55)
-			player.mine_radius += 26.0
-		"vanguard":
-			player.weapon_damage *= 1.18
-			player.weapon_range *= 1.08
-	_register_upgrade_family(upgrade_id)
+			player.mine_radius += 24.0
 	selected_upgrade_ids.append(upgrade_id)
-	level += 1
-	_start_level()
-
-func _register_upgrade_family(upgrade_id: String) -> void:
 	var family := "机动"
-	if upgrade_id in ["damage", "rate", "range", "multishot", "pierce", "broadside", "vanguard"]:
-		family = "炮击"
-	elif upgrade_id in ["heal", "shield", "aura"]:
-		family = "防御"
+	for item in UPGRADE_POOL:
+		if item["id"] == upgrade_id:
+			family = item["family"]
+			break
 	upgrade_family_counts[family] += 1
-	if upgrade_family_counts[family] != 3:
-		return
+	if upgrade_family_counts[family] == 3:
+		_apply_family_resonance(family)
+
+func _apply_family_resonance(family: String) -> void:
 	match family:
 		"炮击":
 			player.bullet_count = mini(player.bullet_count + 1, 5)
 			player.pierce = mini(player.pierce + 1, 4)
-			_show_notice("构筑共鸣：星轨齐射已激活，投射物与穿透 +1")
 		"防御":
+			player.max_health += 18.0
 			player.max_shield_charges = mini(player.max_shield_charges + 1, 3)
 			player.shield_charges = player.max_shield_charges
-			player.max_health += 18.0
-			player.heal(45.0)
-			_show_notice("构筑共鸣：潮汐壁垒已激活，护盾与船体强化")
-		"机动":
+		_:
 			player.forward_speed *= 1.12
 			player.turn_speed *= 1.12
 			player.mine_damage = maxf(player.mine_damage, 36.0)
-			_show_notice("构筑共鸣：风帆雷迹已激活，提速并自动布雷")
+	_show_notice("构筑共鸣：%s系质变已激活" % family)
+
+func _on_enemy_killed(enemy) -> void:
+	enemies.erase(enemy)
+	call_deferred("_check_room_clear")
+
+func _on_turret_destroyed(turret) -> void:
+	turrets.erase(turret)
+	call_deferred("_check_room_clear")
 
 func _on_player_died() -> void:
 	if state == "failed":
 		return
 	state = "failed"
 	player.movement_enabled = false
-	center_panel.visible = true
-	for child in upgrade_row.get_children():
-		child.queue_free()
-	var title := center_panel.get_node("MarginContainer/VBoxContainer/Title") as Label
-	title.text = "远航在第 %d 段失败" % level
-	var restart := Button.new()
-	restart.custom_minimum_size = Vector2(260, 80)
-	restart.text = "重新开始"
-	restart.add_theme_font_size_override("font_size", 22)
-	restart.pressed.connect(_reset_player_stats_and_restart)
-	upgrade_row.add_child(restart)
+	_show_choice_panel("航行失败：第 %d 层 · %s" % [floor_index, ROOM_GRAPH[current_room_id]["name"]], [{
+		"label": "重新开始",
+		"action": _reset_player_stats_and_restart
+	}])
+	state = "failed"
 
 func _reset_player_stats_and_restart() -> void:
 	player.forward_speed = 180.0
@@ -572,57 +693,61 @@ func _reset_player_stats_and_restart() -> void:
 	player.pierce = 0
 	player.side_damage = 11.0
 	player.side_range = 245.0
-	player.side_fire_interval = 1.05
 	player.mine_damage = 0.0
 	player.mine_radius = 96.0
-	player.mine_interval = 1.65
 	player.max_shield_charges = 0
 	player.shield_charges = 0
 	player.aura_damage = 0.0
 	player.aura_radius = 118.0
-	turret_bullet_speed_factor = 1.0
-	turret_lock_factor = 1.0
-	aura_timer = 0.0
-	upgrade_family_counts = {"炮击": 0, "防御": 0, "机动": 0}
-	player.position = START_POSITION
+	rooms_cleared = 0
 	_start_run()
 
-func _update_hud() -> void:
-	var progress := clampf((START_POSITION.y - player.position.y) / (START_POSITION.y - EXIT_RECT.end.y), 0.0, 1.0)
-	var fortress_status := "封锁" if elite_alive else "开放"
-	var speed_state := "加速" if player.is_boosting() else "巡航"
-	hud_label.text = "海道 %d  航程 %d%%  %s %.0f  航线:%s  出口:%s  炮台 %d  船体 %.0f/%.0f  护盾 %d/%d  共鸣 炮%d 防%d 机%d" % [
-		level,
-		int(progress * 100.0),
-		speed_state,
-		player.current_forward_speed(),
-		current_route_name,
-		fortress_status,
-		turrets.size(),
-		player.health,
-		player.max_health,
-		player.shield_charges,
-		player.max_shield_charges,
-		upgrade_family_counts["炮击"],
-		upgrade_family_counts["防御"],
-		upgrade_family_counts["机动"]
-	]
+func _cleanup_objects() -> void:
+	bullets = bullets.filter(func(item) -> bool:
+		return is_instance_valid(item) and item.is_inside_tree()
+	)
+	mines = mines.filter(func(item) -> bool:
+		return is_instance_valid(item) and item.is_inside_tree()
+	)
 
 func _show_notice(text: String) -> void:
 	notice_label.text = text
 	notice_label.modulate = Color.WHITE
-	notice_timer = 2.4
+	notice_timer = 2.2
 
 func _update_notice(delta: float) -> void:
 	if notice_timer <= 0.0:
 		notice_label.text = ""
 		return
 	notice_timer -= delta
-	if notice_timer < 0.45:
-		notice_label.modulate.a = notice_timer / 0.45
+	if notice_timer < 0.4:
+		notice_label.modulate.a = maxf(0.0, notice_timer / 0.4)
+
+func _update_hud() -> void:
+	var room: Dictionary = ROOM_GRAPH[current_room_id]
+	hud_label.text = "第 %d 层  %s  船体 %.0f/%.0f  护盾 %d/%d  星币 %d  钥匙 %d  星爆弹 %d  敌人 %d" % [
+		floor_index,
+		room["name"],
+		player.health,
+		player.max_health,
+		player.shield_charges,
+		player.max_shield_charges,
+		coins,
+		keys,
+		bombs,
+		enemies.size() + turrets.size()
+	]
+	map_label.text = "房间图\n起点 → 战斗 → 宝藏/战斗/隐藏 → 精英 → 商店/事件 → 首领"
 
 func _draw() -> void:
-	draw_rect(EXIT_RECT, Color(0.48, 0.94, 1.0, 0.16))
-	draw_arc(EXIT_RECT.get_center(), 92.0, PI, TAU, 64, Color(0.72, 0.98, 1.0, 0.9), 6.0)
-	draw_line(Vector2(500, 128), Vector2(780, 128), Color(0.88, 0.83, 0.48, 0.8), 4.0)
-	draw_circle(START_POSITION, 78.0, Color(0.38, 0.88, 1.0, 0.08))
+	draw_rect(Rect2(Vector2(42, 50), Vector2(1196, 620)), Color(0.08, 0.34, 0.4, 0.42))
+	draw_rect(ROOM_BOUNDS, Color(0.04, 0.22, 0.29, 0.26))
+	draw_line(Vector2(74, 82), Vector2(1206, 82), Color(0.65, 0.9, 0.92, 0.7), 5.0)
+	draw_line(Vector2(74, 638), Vector2(1206, 638), Color(0.65, 0.9, 0.92, 0.7), 5.0)
+	draw_line(Vector2(74, 82), Vector2(74, 638), Color(0.65, 0.9, 0.92, 0.7), 5.0)
+	draw_line(Vector2(1206, 82), Vector2(1206, 638), Color(0.65, 0.9, 0.92, 0.7), 5.0)
+	for door in available_doors:
+		var locked := keys < int(door.get("key", 0)) or bombs < int(door.get("bomb", 0))
+		var color := Color(0.95, 0.38, 0.32, 0.72) if locked else Color(0.38, 0.92, 1.0, 0.78)
+		draw_rect(door["rect"], Color(color, 0.18))
+		draw_rect(door["rect"], color, false, 5.0)
