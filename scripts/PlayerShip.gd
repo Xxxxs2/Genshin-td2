@@ -123,8 +123,16 @@ func _draw() -> void:
 		hull = Color(1.0, 1.0, 1.0, 0.85)
 	if aura_damage > 0.0:
 		draw_arc(Vector2.ZERO, aura_radius, 0.0, TAU, 96, Color(0.55, 0.92, 1.0, 0.18), 3.0)
-	if shield_charges > 0:
-		draw_arc(Vector2.ZERO, 47.0, -PI * 0.75, PI * 0.75, 48, Color(0.55, 0.88, 1.0, 0.76), 4.0)
+	var health_ratio := clampf(health / maxf(1.0, max_health), 0.0, 1.0)
+	draw_arc(Vector2.ZERO, 54.0, -PI * 0.5, PI * 1.5, 72, Color(0.02, 0.12, 0.16, 0.72), 7.0)
+	draw_arc(Vector2.ZERO, 54.0, -PI * 0.5, -PI * 0.5 + TAU * health_ratio, 72, Color(0.35, 0.95, 0.62, 0.96), 6.0)
+	if max_shield_charges > 0:
+		var segment_gap := deg_to_rad(8.0)
+		var segment_size := (TAU - segment_gap * max_shield_charges) / max_shield_charges
+		for i in range(max_shield_charges):
+			var segment_start := -PI * 0.5 + i * (segment_size + segment_gap)
+			var shield_color := Color(0.52, 0.9, 1.0, 0.95) if i < shield_charges else Color(0.22, 0.45, 0.56, 0.28)
+			draw_arc(Vector2.ZERO, 45.5, segment_start, segment_start + segment_size, 24, shield_color, 4.0)
 	draw_circle(Vector2.ZERO, 36.0, Color(0.16, 0.43, 0.68, 0.22))
 	draw_polygon([
 		Vector2(0, -42),
